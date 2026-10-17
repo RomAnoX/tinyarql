@@ -1,0 +1,91 @@
+README.md
+  s_1e0c32301a677f::t_7cbf3817b6d48b 1-138
+THIRD-PARTY-NOTICES.md
+  s_1e0c32301a677f::t_8e3670d38f4e3f 1-27
+src/csv.js
+  s_1e0c32301a677f::t_9007a8311edf21 1-48
+src/drivers/mysql.js
+  s_1e0c32301a677f::t_b0f0d5fc72281a 1-312
+src/drivers/postgres.js
+  s_1e0c32301a677f::t_cb2a9418cbed39 1-214
+src/drivers/sqlite.js
+  s_1e0c32301a677f::t_b08c87d3fe1d70 1-62
+src/frontend/ICONS-LICENSE.txt
+  s_1e0c32301a677f::t_baeb2c440e2880 1-43
+src/frontend/app.js
+  s_1e0c32301a677f::t_4f6e5a07b13685 1-1088
+src/frontend/editor.js
+  s_1e0c32301a677f::t_9c83b3131fa668 1-51
+src/frontend/fonts/GEIST-OFL.txt
+  s_1e0c32301a677f::t_792e0e78faed6a 1-92
+src/frontend/icons.js
+  s_1e0c32301a677f::t_747855bac24a12 1-44
+src/frontend/index.html
+  s_1e0c32301a677f::t_89b02cdb156856 1-139
+src/frontend/jsonpretty.js
+  s_1e0c32301a677f::t_528a5a1fe72ab5 1-47
+src/frontend/style.css
+  s_1e0c32301a677f::t_1977d911f485e6 1-252
+src/main.js
+  s_1e0c32301a677f::t_c74fe1c5f9c3fe 1-191
+src/windowstate.js
+  s_1e0c32301a677f::t_c2f9896ce374fd 1-41
+test/csv.js
+  s_1e0c32301a677f::t_6a1b3921fce2c6 1-77
+test/drivers.js
+  s_1e0c32301a677f::t_e65e4d68394e4c 1-169
+test/main.js
+  s_1e0c32301a677f::t_761663f227f703 1-169
+test/mysql-server.sh
+  s_1e0c32301a677f::t_c76c1ba5ecffd0 1-55
+test/persist.sh
+  s_1e0c32301a677f::t_a553a8e049ac2c 1-75
+test/restart.sh
+  s_1e0c32301a677f::t_8bbf127f659906 1-92
+test/tunnel.js
+  s_1e0c32301a677f::t_55024634118cc7 1-69
+test/ui-driver.js
+  s_1e0c32301a677f::t_8ee558614ac3e3 1-1304
+test/ui.sh
+  s_1e0c32301a677f::t_827ecb5138b5c8 1-44
+test/windowstate.js
+  s_1e0c32301a677f::t_5bfc78ede39609 1-59
+tinyjs.json
+  s_1e0c32301a677f::t_30e984c4c5c8e0 1-8
+tools/editor/entry.js
+  s_1e0c32301a677f::t_338069b2196a81 1-101
+tools/editor/icons.mjs
+  s_1e0c32301a677f::t_14e58dcfdae8d1 1-33
+tools/editor/package-lock.json
+  s_1e0c32301a677f::t_ab5a7bbc340df4 1-702
+tools/editor/package.json
+  s_1e0c32301a677f::t_9e50843898a815 1-23
+tools/make-icon.py
+  s_1e0c32301a677f::t_b5902491a3b685 1-34
+.gitignore
+  s_1e0c32301a677f::t_ba4ebc0a314c56 1-15
+jsconfig.json
+  s_1e0c32301a677f::t_2266848862d3f3 1-10
+src/tunnel.js
+  s_1e0c32301a677f::t_af593963976e1e 1-57
+types/tiny.d.ts
+  s_1e0c32301a677f::t_14c223261fe17a 1-1371
+types/tjs.d.ts
+  s_1e0c32301a677f::t_dda591b3c26bdc 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb7a983c5253b14ed4ba65a08693c8ffee9b122f",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
