@@ -1,0 +1,15 @@
+# build output
+dist/
+.build/
+
+# dependencies (tools/editor is only needed to rebuild src/frontend/editor.js and icons.js)
+node_modules/
+
+# editor and OS files
+.DS_Store
+*.part
+
+# local AI-assistant tooling and session notes
+.claude/
+.agents/
+.remember/

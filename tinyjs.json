@@ -1,0 +1,8 @@
+{
+  "name": "tinyarql",
+  "title": "TinyArQL",
+  "size": "960x640",
+  "id": "com.example.tinyarql",
+  "version": "0.1.0",
+  "minTinyjsVersion": "0.42.2"
+}

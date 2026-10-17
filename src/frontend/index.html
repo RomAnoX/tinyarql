@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TinyArQL</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="envBar" hidden></div>
+
+<aside>
+  <div id="sideScroll">
+    <ul id="conns"></ul>
+    <div id="savedGroup">
+      <div class="row">
+        <button id="savedHead" class="head" aria-expanded="true" aria-controls="saved"><span class="chev"><i data-icon="chevron-right" data-size="14"></i></span><span class="name">Saved queries</span></button>
+        <span class="count" id="savedCount">0</span>
+      </div>
+      <div class="searchbox" id="savedSearchBox" hidden>
+        <i data-icon="search" data-size="14"></i>
+        <input id="savedSearch" type="text" placeholder="Filter saved queries" aria-label="Filter saved queries" autocomplete="off" spellcheck="false">
+        <button id="savedSearchClear" class="icon" title="Clear (Esc)" aria-label="Clear filter" hidden><i data-icon="x" data-size="12"></i></button>
+      </div>
+      <ul id="saved"></ul>
+    </div>
+  </div>
+  <div class="side-foot">
+    <button id="addConn"><i data-icon="plus"></i>Add connection</button>
+    <span class="spacer"></span>
+    <button id="settingsBtn" class="icon" title="Settings (⌘,)" aria-label="Settings"><i data-icon="settings"></i></button>
+  </div>
+</aside>
+
+<div id="sideSplitter" role="separator" aria-orientation="vertical" aria-label="Resize the connections panel" aria-valuemin="180" tabindex="0" title="Drag to resize, double-click to reset"></div>
+
+<main>
+  <div id="tabs">
+    <div id="tablist" role="tablist" aria-label="Query tabs"></div>
+    <button id="newTab" class="icon" title="New query tab (⌘T)" aria-label="New query tab"><i data-icon="plus"></i></button>
+    <button id="openFile" class="icon" title="Open .sql files (⌘O), or drop them on the window" aria-label="Open SQL files"><i data-icon="folder-open"></i></button>
+  </div>
+  <div class="editor">
+    <div id="sql"></div>
+    <div class="bar">
+      <button id="run" class="primary" disabled><i data-icon="play" data-size="14"></i>Run</button>
+      <button id="saveBtn" title="Save this query (⌘S). Shift saves a copy."><i data-icon="save" data-size="14"></i>Save</button>
+      <button id="exportBtn" title="Export this query as a .sql file (⌘E)"><i data-icon="download" data-size="14"></i>Export SQL</button>
+      <span class="hint" id="hint">⌘/Ctrl+Enter runs the selection, or the whole editor</span>
+    </div>
+  </div>
+  <div id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize the editor" aria-valuemin="64" tabindex="0" title="Drag to resize, double-click to reset"></div>
+  <div class="body">
+    <div id="grid" class="grid"><div class="empty">Add a connection to start querying.</div></div>
+    <section id="detail" hidden>
+      <div id="detailSplitter" role="separator" aria-orientation="vertical" aria-label="Resize the cell details" aria-valuemin="260" tabindex="0" title="Drag to resize, double-click to reset"></div>
+      <div class="detail-head">
+        <span id="detailTitle"></span>
+        <span class="spacer"></span>
+        <span class="segs"><button id="detailTree" title="Collapsible tree"><i data-icon="list-tree" data-size="14"></i>Tree</button><button id="detailJson" title="Indented and coloured JSON"><i data-icon="braces" data-size="14"></i>Json</button><button id="detailRaw" title="Value exactly as returned"><i data-icon="file-text" data-size="14"></i>Raw</button></span>
+        <button id="detailCopy"><i data-icon="copy" data-size="14"></i><span>Copy</span></button>
+        <button id="detailClose" class="icon" title="Close (Esc)" aria-label="Close panel"><i data-icon="x"></i></button>
+      </div>
+      <div id="detailBody"></div>
+    </section>
+  </div>
+  <footer id="statusbar">
+    <span id="where"></span>
+    <span class="spacer"></span>
+    <span id="status"></span>
+    <button id="exportCsv" hidden title="Export these results as a CSV file (⌘⇧E)"><i data-icon="download" data-size="14"></i>Export CSV</button>
+    <span id="pager" hidden>
+      <button id="prev" aria-label="Previous page"><i data-icon="chevron-left" data-size="14"></i></button><span id="pageNo"></span><button id="next" aria-label="Next page"><i data-icon="chevron-right" data-size="14"></i></button>
+    </span>
+  </footer>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h2 id="dlgTitle">Connection</h2>
+    <label>Name <input name="name" required></label>
+    <label>Type
+      <select name="type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="sqlite">SQLite</option></select>
+    </label>
+    <label>Environment
+      <select name="env"><option value="">None</option><option value="local">Local</option><option value="staging">Staging</option><option value="production">Production</option></select>
+    </label>
+    <p class="hint">Staging and production colour the top edge of the window while you're connected.</p>
+    <div data-for="postgres mysql">
+      <label>Host <input name="host" value="127.0.0.1"></label>
+      <label>Port <input name="port" value="5432"></label>
+      <label>User <input name="user"></label>
+      <label>Password <input name="password" type="password"></label>
+      <label>Database <input name="database"></label>
+      <label class="check"><input type="checkbox" name="sshOn"> Connect through an SSH tunnel</label>
+      <div id="ssh" hidden>
+        <label>SSH host <input name="sshHost" placeholder="bastion.example.com"></label>
+        <label>SSH port <input name="sshPort" value="22"></label>
+        <label>SSH user <input name="sshUser" placeholder="(your login name)"></label>
+        <label>Private key <span class="row"><input name="sshKey" placeholder="(ssh-agent / default keys)"><button type="button" id="pickKey"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>
+        <p class="hint">Host/Port above are then resolved from the SSH server (use 127.0.0.1 for a DB on the SSH host). Key or agent auth only — keys with a passphrase must be loaded in ssh-agent.</p>
+      </div>
+      <p class="hint">No TLS: connect to remote databases through an SSH tunnel.</p>
+      <p class="hint" data-for="mysql">Servers that require TLS, as many cloud databases do, are not supported yet.</p>
+    </div>
+    <div data-for="sqlite">
+      <label>File <span class="row"><input name="path"><button type="button" id="pick"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>
+    </div>
+    <div class="note" id="formErr" role="status" aria-live="polite"></div>
+    <div class="actions">
+      <button type="button" id="test">Test connection</button>
+      <span class="spacer"></span>
+      <button type="button" id="cancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="settings">
+  <h2>Settings</h2>
+  <div class="field">
+    <span id="themeLabel">Theme</span>
+    <div id="themeSeg" class="segs" role="radiogroup" aria-labelledby="themeLabel">
+      <button type="button" role="radio" data-theme="system"><i data-icon="monitor" data-size="14"></i>System</button>
+      <button type="button" role="radio" data-theme="light"><i data-icon="sun" data-size="14"></i>Light</button>
+      <button type="button" role="radio" data-theme="dark"><i data-icon="moon" data-size="14"></i>Dark</button>
+    </div>
+    <p class="hint" style="margin-top:6px">System follows your computer's appearance setting.</p>
+  </div>
+  <label class="check"><input type="checkbox" id="optVim"> Vim keybindings in the editor</label>
+  <p class="hint">Adds Vim modes to the SQL editor. <code>:w</code> runs the query; ⌘/Ctrl+Enter still works.</p>
+  <div class="actions"><span class="spacer"></span><button id="settingsClose" class="primary">Done</button></div>
+</dialog>
+
+<script src="icons.js"></script>
+<script src="editor.js"></script>
+<script src="jsonpretty.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
