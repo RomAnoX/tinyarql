@@ -1,5 +1,6 @@
 // MySQL section needs a MySQL 8 on 127.0.0.1:33061 (users tester/secret [caching_sha2], native/secret [native_password], nopass/'' ;
 // database testdb with table people(id,name,note,born,score,flag,meta json,raw blob) + view v; database otherdb with table elsewhere).
+// (test/postgres-server.sh and test/mysql-server.sh start both servers.)
 // Needs a Postgres on 127.0.0.1:54329 (user tester / password secret, db postgres) with table people(id serial, name, note) + a view.
 // Run: ~/.tinyjs/bin/tjs run test/drivers.js
 import { connect as pg } from '../src/drivers/postgres.js';

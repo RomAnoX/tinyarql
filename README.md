@@ -123,7 +123,8 @@ The tests live in `test/`. The database tests need disposable servers, and the h
 ```sh
 ~/.tinyjs/bin/tjs run test/csv.js           # CSV format and file writer (no services needed)
 ~/.tinyjs/bin/tjs run test/windowstate.js   # window position rules (no services needed)
-test/mysql-server.sh start                  # a throwaway MySQL 8 for the tests below
+test/postgres-server.sh start               # a throwaway PostgreSQL (uses one you have installed)
+test/mysql-server.sh start                  # a throwaway MySQL 8 (downloads it once)
 ~/.tinyjs/bin/tjs run test/drivers.js       # PostgreSQL, MySQL and SQLite drivers
 ~/.tinyjs/bin/tjs run test/main.js          # the backend API, end to end
 test/ui.sh                                  # the interface, driven in a real window (macOS)

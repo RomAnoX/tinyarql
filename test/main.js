@@ -1,4 +1,4 @@
-// Same Postgres as test/drivers.js. Run: ~/.tinyjs/bin/tjs run test/main.js
+// Same Postgres and MySQL as test/drivers.js (test/postgres-server.sh, test/mysql-server.sh). Run: ~/.tinyjs/bin/tjs run test/main.js
 import { api, init } from '../src/main.js';
 const mem = new Map();
 const pushes = [];
