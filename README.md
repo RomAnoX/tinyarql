@@ -54,6 +54,7 @@ It started as a rebuild of Arctype, a lovely SQL client that is no longer mainta
 
 ### Connect anywhere
 - **PostgreSQL** (password and SCRAM-SHA-256 logins), **MySQL** (both `caching_sha2_password` and `mysql_native_password`), and **SQLite** files.
+- **TLS** for PostgreSQL and MySQL, including cloud databases that require it. The certificate is always verified.
 - **SSH tunnels** for remote databases, using your keys or ssh-agent.
 - Test a connection from the form before you save it.
 
@@ -88,7 +89,7 @@ Requires macOS 15 or later. The download is a universal build for Intel and Appl
 
 ## Good to know
 
-- **No TLS yet.** TinyArQL speaks to databases over plain TCP, so servers that require TLS (many cloud databases) are not supported. For a remote server you manage, use an SSH tunnel.
+- **TLS always verifies the certificate.** There is no "encrypt but don't check" mode. A server with a public certificate works as is; for a private or self-signed one, choose its CA's `.pem` file in the connection settings. MySQL's auto-generated certificates carry no host name, so they fail the name check: give the server a certificate for its host name.
 - **MySQL** has been tested against MySQL 8.0 only. MariaDB and MySQL 5.7 should work with the standard login but are untested.
 - **SQLite queries can't be stopped** once started, because the SQLite library is synchronous.
 - **macOS first.** It is built and tested on macOS. tinyjs can target Windows and Linux, but this has not been tried there.
@@ -127,6 +128,7 @@ test/postgres-server.sh start               # a throwaway PostgreSQL (uses one y
 test/mysql-server.sh start                  # a throwaway MySQL 8 (downloads it once)
 ~/.tinyjs/bin/tjs run test/drivers.js       # PostgreSQL, MySQL and SQLite drivers
 ~/.tinyjs/bin/tjs run test/main.js          # the backend API, end to end
+~/.tinyjs/bin/tjs run test/tls.js           # TLS to PostgreSQL and MySQL servers that require it
 test/ui.sh                                  # the interface, driven in a real window (macOS)
 ```
 

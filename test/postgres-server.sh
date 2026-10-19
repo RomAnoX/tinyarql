@@ -29,15 +29,23 @@ case "$1" in
     printf 'secret' > "$DIR/pw"
     "$BIN/initdb" -D "$DATA" -U tester --pwfile="$DIR/pw" --auth=scram-sha-256 -E UTF8 >/dev/null
     rm -f "$DIR/pw"
+    # TLS: a self-signed certificate for localhost / 127.0.0.1 (the tests pass it as the CA), and a user that may ONLY connect encrypted
+    openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+      -keyout "$DATA/server.key" -out "$DATA/server.crt" >/dev/null 2>&1
+    chmod 600 "$DATA/server.key"; cp "$DATA/server.crt" "$DIR/server.crt"
+    printf 'hostssl all tlsonly 127.0.0.1/32 scram-sha-256\nhostnossl all tlsonly 127.0.0.1/32 reject\n%s\n' "$(cat "$DATA/pg_hba.conf")" > "$DATA/pg_hba.conf.new"
+    mv "$DATA/pg_hba.conf.new" "$DATA/pg_hba.conf"
     # unix_socket_directories='' : socket paths are limited to ~100 bytes and TMPDIR paths are long, so listen on TCP only
-    "$BIN/pg_ctl" -D "$DATA" -o "-p $PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=''" -l "$DIR/server.log" -w start >/dev/null \
+    "$BIN/pg_ctl" -D "$DATA" -o "-p $PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories='' -c ssl=on" -l "$DIR/server.log" -w start >/dev/null \
       || { echo "PostgreSQL did not start; see $DIR/server.log"; exit 1; }
     PGPASSWORD=secret "$BIN/psql" -h 127.0.0.1 -p $PORT -U tester -d postgres -v ON_ERROR_STOP=1 -q <<'SQL'
 create table people(id serial primary key, name text, note text);
 insert into people(name, note) values ('ada', 'x'), ('bob', null);
 create view v as select * from people;
+create user tlsonly password 'secret';
+grant select on all tables in schema public to tlsonly;
 SQL
-    echo "PostgreSQL ready on 127.0.0.1:$PORT (user tester / password secret, database postgres)" ;;
+    echo "PostgreSQL ready on 127.0.0.1:$PORT (user tester / password secret, database postgres; TLS on, certificate at $DIR/server.crt; user tlsonly / secret accepts TLS only)" ;;
   stop)
     if alive; then "$BIN/pg_ctl" -D "$DATA" stop -m fast >/dev/null && echo stopped; else echo "not running"; fi ;;
   status)

@@ -19,6 +19,7 @@ Read this before changing anything. The "Decisions" section records why things a
 tinyjs.json            name/title/id/version. title = window, menu and .app name. id owns the data folder: never change it.
 icon.png               1024px, rounded square inset 100px on a transparent canvas (python3 tools/make-icon.py <img>)
 src/main.js            backend: the `api` object the page calls, sessions, SSH tunnel wiring, CSV and file endpoints
+src/tls.js             TLS for the drivers: loopback relay that upgrades a plaintext connection (see Decisions)
 src/csv.js             CSV format (RFC 4180) and the safe file writer (.part then rename)
 src/tunnel.js          `ssh -L` wrapper
 src/windowstate.js     saves and restores the main window's size and position
@@ -40,7 +41,7 @@ The backend is **not Node**. This shapes the whole design.
 - No `require`, no Node builtins, no native npm modules. Pure-JS only, which is why the database drivers speak the wire protocols themselves.
 - Streams need `getReader()` (no `for await`). `tjs.cwd` is a property. Every `tjs.*` filesystem call is async; `tjs:sqlite` is fully **synchronous** (no `get()`, `run()` returns void) and has no cursor or interrupt.
 - **No `Intl` in the backend**: `toLocaleString()` adds no separators. Use an explicit formatter (`thousands()` in the MySQL driver). The webview *does* have `Intl`.
-- **No TLS** for raw sockets, **no MD5** in WebCrypto. SHA-1, SHA-256, HMAC, PBKDF2 and RSA-OAEP(SHA-1) do exist.
+- **TLS exists, but only as `TLSSocket`**, which starts TLS on a fresh connection: it cannot upgrade an existing `TCPSocket` (`secureTransport:'starttls'` and `tjs.connect(..., {tls:true})` are silently ignored). It always verifies the chain and the host name (`sni`); there is no option to switch that off. `ca` (PEM text) sets the trusted CA, default is the system roots. **No MD5** in WebCrypto. SHA-1, SHA-256, HMAC, PBKDF2 and RSA-OAEP(SHA-1) do exist.
 - The page has an RPC channel to a backend with full system access, so **everything interpolated into `innerHTML` must go through `esc()`**. Never add a path that skips it.
 - A window that is covered or hidden is **throttled by the OS** (timers stop, `document.visibilityState` is `hidden`). Anything driven by timers, including every UI test, needs a visible window.
 - `tiny.dialog.confirm(message, { detail, ok, cancel })` takes an options object. (An early call passed the detail as a string and it was silently ignored.)
@@ -73,7 +74,11 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 
 ### Databases and drivers
 - **Wire protocols in pure JS**, because the runtime has no libraries and no native modules. Postgres: simple-query protocol, text results, cleartext and SCRAM-SHA-256 (no MD5: unavailable). MySQL: text protocol `COM_QUERY`, `mysql_native_password` and `caching_sha2_password`, including the full RSA login over plaintext (the first login of any new MySQL 8 account needs it), multi-statements enabled, `LOCAL INFILE` never enabled.
-- **No TLS** (yet). A server that needs it is refused. This is the app's biggest limitation. The Postgres error is `no pg_hba.conf entry ... no encryption`. See Backlog.
+- **TLS through a loopback relay** (`src/tls.js`). Postgres (SSLRequest, answer `S`) and MySQL (SSLRequest packet after the greeting) start in plaintext, but `TLSSocket` cannot upgrade a socket. So the driver does its plaintext preamble on a `TCPSocket`, then `startTls` opens a one-shot `TCPServerSocket` on 127.0.0.1, points a `TLSSocket` at it (`sni` = the real host name, `ca` = the user's CA file) and pumps bytes between that local socket and the real one. The relay carries only ciphertext; the `TLSSocket` does all verification. Verified against real TLS-only accounts (Postgres 15 `hostssl`, MySQL 8 `REQUIRE SSL`), including cancel, which also negotiates TLS on its second connection.
+- **TLS always verifies; there is no `sslmode=require`.** The runtime has no switch to skip certificate checks, so "encrypt without checking" cannot be offered. The form has a "Use TLS" box and an optional CA file (empty = system roots). `sni` is the host the user typed, also when the socket goes through an SSH tunnel to 127.0.0.1. Errors from mbedTLS are rewritten to say what to do. MySQL's auto-generated server certificate has no host name, so it fails the name check; test servers use their own certificate (see Testing).
+- Both drivers check that nothing arrives in plaintext between the upgrade request and the handshake (Postgres: the reply must be exactly one byte; MySQL: the read buffer must be empty), so injected bytes cannot be read as post-TLS data.
+- Hint on refusal: when TLS is off and the server says `no encryption`, `insecure transport` or `require_secure_transport`, `main.js` appends "turn on Use TLS".
+- A tunnel still adds no encryption of its own; with TLS on, the database leg is encrypted end to end through the tunnel.
 - **Cancellation uses a second connection**: Postgres `CancelRequest`, MySQL `KILL QUERY <thread id>`. It goes through an SSH tunnel too. SQLite cannot be cancelled (synchronous driver would block the very cancel call), so the UI shows a disabled "Running…" there.
 - **A cancel must land before the connection is released.** When a sink fails, the driver cancels, drains the rest of the result, and *awaits that cancel* before finishing. Without the await, the late cancel killed the user's next statement. Same in both drivers.
 - **SQLite**: `prepare()` runs only the first statement and silently drops the rest, so `splitStatements()` (aware of strings and comments) runs them in order. Column names come from the first row only (a zero-row result has none; `select()` falls back to `table_info`).
@@ -81,7 +86,7 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 - Greeting timeout (10 s) on MySQL so a non-MySQL port (e.g. Postgres) fails with a clear message instead of hanging.
 
 ### SSH tunnels
-- Use the **system `ssh -L`** (no ssh library exists here). `BatchMode`, `ExitOnForwardFailure`, `StrictHostKeyChecking=accept-new`, key or agent auth only (no password or passphrase prompts). A random local port is chosen and skipped if something already listens. Host/user values starting with `-` or containing spaces are rejected before spawning (option injection). A tunnel adds no TLS to the database leg; it only helps when the server accepts plain connections from the tunnel's far end (for example `127.0.0.1` on the DB host).
+- Use the **system `ssh -L`** (no ssh library exists here). `BatchMode`, `ExitOnForwardFailure`, `StrictHostKeyChecking=accept-new`, key or agent auth only (no password or passphrase prompts). A random local port is chosen and skipped if something already listens. Host/user values starting with `-` or containing spaces are rejected before spawning (option injection). A tunnel adds no TLS of its own: tick "Use TLS" as well when the server requires it, otherwise it only helps when the server accepts plain connections from the tunnel's far end (for example `127.0.0.1` on the DB host).
 
 ### Tabs, saved queries, files
 - **Each tab owns SQL, results, undo history and a connection.** Switching tabs switches `active`, so a query can never silently run on the wrong database. The editor state is cached per tab (`editor.getState/setState`) so undo cannot leak between tabs. A result that finishes in a background tab is stored there, not painted over the visible one. One query runs at a time globally.
@@ -120,6 +125,7 @@ All under `test/`. Each file's header lists what it needs. Nothing is installed 
 | `~/.tinyjs/bin/tjs run test/windowstate.js` | restore and save rules | nothing |
 | `~/.tinyjs/bin/tjs run test/drivers.js` | the three drivers, against real servers | Postgres 54329, MySQL 33061 (`test/postgres-server.sh`, `test/mysql-server.sh`) |
 | `~/.tinyjs/bin/tjs run test/main.js` | the backend API end to end, CSV, files, cancel | same |
+| `~/.tinyjs/bin/tjs run test/tls.js` | TLS: both drivers, cancel, negative controls (no TLS, wrong CA, wrong name), API fields and messages | same (both servers need `openssl`) |
 | `SSH_TEST_KEY=... ~/.tinyjs/bin/tjs run test/tunnel.js` | tunnels, cancel through a tunnel | same + sshd 22222 |
 | `test/ui.sh` | the whole UI in a real window (several hundred checks) | a visible display; MySQL optional |
 | `test/persist.sh` | window geometry across real quits | display |
@@ -128,6 +134,7 @@ All under `test/`. Each file's header lists what it needs. Nothing is installed 
 Throwaway servers:
 - **MySQL**: `test/mysql-server.sh start|stop|status` downloads MySQL 8.0.40 once into `$TMPDIR/tinyarql-mysql` and creates users (`tester`/`secret` caching_sha2, `native`/`secret`, `nopass`) and the `testdb`/`otherdb` data the tests expect.
 - **Postgres**: `test/postgres-server.sh start|stop|status` rebuilds a throwaway cluster on 127.0.0.1:54329 (user `tester`, password `secret`, SCRAM auth) with `people(id serial, name, note)` (rows `ada`/`x` and `bob`/NULL) and a view `v`. It downloads nothing: it uses a PostgreSQL you already have (Homebrew `postgresql@NN`, Postgres.app, or `PG_BIN=...`). Data lives in `$TMPDIR/tinyarql-postgres`. It listens on TCP only (`unix_socket_directories=''`), because socket paths under `$TMPDIR` are too long.
+- Both scripts generate a self-signed certificate for `localhost`/`127.0.0.1` and add TLS-only accounts: Postgres `tlsonly` (`hostssl` rule plus `hostnossl ... reject`), MySQL `tlsonly` and `tlsnative` (`REQUIRE SSL`). Tests pass that certificate as the CA. Not covered by tests: TLS through an SSH tunnel, and a server with a certificate from a public CA.
 - **sshd**: a user-level `sshd -f` on 127.0.0.1:22222 with a generated key, `UsePAM no`, `PasswordAuthentication no`, `StrictModes no`, plus an `ssh` wrapper first on `PATH` that adds `-o UserKnownHostsFile=<scratch>` so `~/.ssh/known_hosts` is never written.
 
 UI test rules:
@@ -149,7 +156,7 @@ Release checklist (what v0.1.0 followed): bump `version` in `tinyjs.json`; run t
 
 ## Known limitations and backlog
 
-- **TLS** to databases (Postgres `hostssl`, RDS/Azure, MySQL `require_secure_transport`). Needs a JS implementation of the protocol over WebCrypto; a first version could match `sslmode=require` (encrypt, no certificate check), with CA verification later. Meanwhile the connection form's hint about SSH tunnels is misleading when a server demands encryption: fix the wording and turn the `no encryption` / secure-transport errors into a plain explanation.
+- **TLS**: no `sslmode=require` equivalent (the runtime cannot skip verification), so a server with a self-signed certificate needs its CA file; MySQL auto-generated certificates (no host name) cannot be used as is. Not tested: TLS through an SSH tunnel, public-CA servers such as RDS or Azure, client certificates (not supported), PostgreSQL 17 direct TLS (not used). Throughput of the JS byte pump is unmeasured on large results.
 - Notarization; real Apple Silicon testing; Windows and Linux are untried.
 - MySQL tested on 8.0 only (MariaDB, 5.7 untested); only the two logins above.
 - SQLite: cannot be stopped; a zero-row result has no header.
@@ -164,4 +171,6 @@ Release checklist (what v0.1.0 followed): bump `version` in `tinyjs.json`; run t
 - A hidden window stalls timer-driven tests; keep it on top.
 - `JSON.stringify(JSON.parse(x))` is not a safe pretty-printer for database values.
 - `toLocaleString()` and `Intl` do not exist in the backend runtime.
+- "The runtime has no TLS" was wrong through the whole 0.1.0 release: nobody had checked for `TLSSocket`. Probe the runtime (a ten-line script) before writing a limitation into the docs.
+- zsh also aborts on an unmatched glob inside `$(ls -d ...)`: `ls` the Homebrew path through the script's `find_bin` logic or an explicit path instead.
 - The tinyjs `title` (not `name`) names the app; the `id` must never change or users lose their saved data.

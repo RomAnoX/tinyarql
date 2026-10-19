@@ -1,8 +1,10 @@
-// Minimal MySQL wire-protocol client (text protocol, COM_QUERY). txiki.js has no MySQL library and no TLS, so: plaintext
-// TCP, mysql_native_password and caching_sha2_password logins (the latter's "full" step over plaintext uses the server's
-// RSA public key). Works with MySQL 5.7/8.x; MariaDB's default native_password login should too (untested).
-// ponytail: no TLS (a server with require_secure_transport rejects us; use an SSH tunnel for the network leg), no
-// prepared statements or bind params, no LOAD DATA LOCAL.
+// Minimal MySQL wire-protocol client (text protocol, COM_QUERY). txiki.js has no MySQL library, so: mysql_native_password
+// and caching_sha2_password logins (the latter's "full" step uses the server's RSA public key over plaintext, or the
+// password itself inside TLS). TLS goes through ../tls.js. Works with MySQL 5.7/8.x; MariaDB's default native_password
+// login should too (untested).
+// ponytail: TLS always verifies the certificate (no "encrypt but don't check" mode), no prepared statements or bind
+// params, no LOAD DATA LOCAL.
+import { startTls } from '../tls.js';
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const subtle = crypto.subtle;
@@ -11,7 +13,7 @@ const BLOB_PREVIEW = 2048;  // bytes of a binary value shown in the grid (an exp
 
 const CLIENT = {
   LONG_PASSWORD: 0x1, LONG_FLAG: 0x4, CONNECT_WITH_DB: 0x8, PROTOCOL_41: 0x200, TRANSACTIONS: 0x2000,
-  SECURE_CONNECTION: 0x8000, MULTI_STATEMENTS: 0x10000, MULTI_RESULTS: 0x20000, PLUGIN_AUTH: 0x80000,
+  SSL: 0x800, SECURE_CONNECTION: 0x8000, MULTI_STATEMENTS: 0x10000, MULTI_RESULTS: 0x20000, PLUGIN_AUTH: 0x80000,
 };
 const MORE_RESULTS = 0x0008;  // server status flag: another result set follows
 const ER_QUERY_INTERRUPTED = 1317;  // what a killed statement fails with
@@ -90,11 +92,13 @@ function decodeValue(bytes, m, full) {
 // One authenticated socket: packets in, packets out.
 // greetingTimeoutMs: how long to wait for the server's first packet (a port that accepts but never speaks MySQL, like
 // Postgres's, would otherwise hang forever).
-async function open({ host, port, user, password = '', database, greetingTimeoutMs = 10000 }) {
+// tls ({ sni, ca }): after the (plaintext) greeting, ask to switch to TLS and log in inside it.
+async function open({ host, port, user, password = '', database, greetingTimeoutMs = 10000, tls = null }) {
   const conn = await tjs.connect('tcp', host, port);
   const { readable, writable } = await conn.opened;
-  const reader = readable.getReader();
-  const writer = writable.getWriter();
+  let reader = readable.getReader();
+  let writer = writable.getWriter();
+  let closeSocket = () => conn.close();
   let buf = new Uint8Array(0), pos = 0;
 
   const need = async (n) => {
@@ -131,7 +135,7 @@ async function open({ host, port, user, password = '', database, greetingTimeout
   };
   const close = async () => {
     try { write(0, new Uint8Array([0x01])); } catch {}  // COM_QUIT
-    try { conn.close(); } catch {}
+    try { closeSocket(); } catch {}
   };
 
   try {
@@ -164,10 +168,21 @@ async function open({ host, port, user, password = '', database, greetingTimeout
     const tokenFor = (name, s) => (name === 'caching_sha2_password' ? sha2Token(password, s) : name === 'mysql_native_password' ? nativeToken(password, s) : null);
     const first = await tokenFor(plugin, salt);
     if (!first) throw new Error(`The server wants the "${plugin}" login, which is not supported`);
-    const flags = CLIENT.LONG_PASSWORD | CLIENT.LONG_FLAG | CLIENT.PROTOCOL_41 | CLIENT.TRANSACTIONS | CLIENT.SECURE_CONNECTION |
+    let flags = CLIENT.LONG_PASSWORD | CLIENT.LONG_FLAG | CLIENT.PROTOCOL_41 | CLIENT.TRANSACTIONS | CLIENT.SECURE_CONNECTION |
       CLIENT.MULTI_STATEMENTS | CLIENT.MULTI_RESULTS | CLIENT.PLUGIN_AUTH | (database ? CLIENT.CONNECT_WITH_DB : 0);
-    let seq = write(1, cat(
-      u32le(flags), u32le(0x01000000), new Uint8Array([45]), new Uint8Array(23),  // flags, max packet, utf8mb4_general_ci, filler
+    const head = (f) => cat(u32le(f), u32le(0x01000000), new Uint8Array([45]), new Uint8Array(23));  // flags, max packet, utf8mb4_general_ci, filler
+    let seq = 1;
+    if (tls) {
+      if (!((capLow | (capHigh << 16)) & CLIENT.SSL)) throw new Error('This server does not offer TLS');
+      flags |= CLIENT.SSL;
+      seq = write(seq, head(flags));  // the SSLRequest: the login packet's first 32 bytes, nothing more
+      if (pos !== buf.length) throw new Error('unexpected data before the TLS handshake');  // plaintext injected ahead of TLS
+      const s = await startTls({ reader, writer, close: () => conn.close() }, tls);
+      reader = s.readable.getReader(); writer = s.writable.getWriter(); closeSocket = s.close;
+      buf = new Uint8Array(0); pos = 0;
+    }
+    seq = write(seq, cat(
+      head(flags),
       cstr(user), new Uint8Array([first.length]), first, database ? cstr(database) : new Uint8Array(0), cstr(plugin),
     ));
     let via = plugin;  // which login path actually completed, for diagnostics and tests
@@ -187,7 +202,8 @@ async function open({ host, port, user, password = '', database, greetingTimeout
         via = name;
       } else if (p[0] === 0x01) {  // caching_sha2_password: 0x03 = cached, send nothing; 0x04 = full login; else a public key
         if (p[1] === 0x03) { via = 'caching_sha2_password (cached)'; continue; }
-        if (p[1] === 0x04) { via = 'caching_sha2_password (full, RSA)'; seq = write(seq, new Uint8Array([0x02])); }  // we have no TLS: ask for the RSA public key
+        if (p[1] === 0x04 && tls) { via = 'caching_sha2_password (full, TLS)'; seq = write(seq, cstr(password)); }  // the channel is encrypted: the password may go as is
+        else if (p[1] === 0x04) { via = 'caching_sha2_password (full, RSA)'; seq = write(seq, new Uint8Array([0x02])); }  // no TLS: ask for the RSA public key
         else seq = write(seq, await sha2Encrypted(password, salt, dec.decode(p.subarray(1))));
       } else throw new Error('Unexpected reply while logging in');
     }

@@ -99,8 +99,11 @@
         <label>Private key <span class="row"><input name="sshKey" placeholder="(ssh-agent / default keys)"><button type="button" id="pickKey"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>
         <p class="hint">Host/Port above are then resolved from the SSH server (use 127.0.0.1 for a DB on the SSH host). Key or agent auth only — keys with a passphrase must be loaded in ssh-agent.</p>
       </div>
-      <p class="hint">No TLS: connect to remote databases through an SSH tunnel.</p>
-      <p class="hint" data-for="mysql">Servers that require TLS, as many cloud databases do, are not supported yet.</p>
+      <label class="check"><input type="checkbox" name="tlsOn"> Use TLS (encrypt the connection)</label>
+      <div id="tls" hidden>
+        <label>CA certificate <span class="row"><input name="tlsCa" placeholder="(public certificate authorities)"><button type="button" id="pickCa"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>
+        <p class="hint">The server's certificate is always checked, including that it names the host above. Leave the file empty for a server with a certificate from a public authority, as most cloud databases have. For a private or self-signed certificate, choose the .pem file of the CA that signed it (or the certificate itself).</p>
+      </div>
     </div>
     <div data-for="sqlite">
       <label>File <span class="row"><input name="path"><button type="button" id="pick"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>

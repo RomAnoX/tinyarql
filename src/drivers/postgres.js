@@ -1,6 +1,7 @@
 // Minimal Postgres wire-protocol client (simple query protocol, text results).
-// txiki.js has no node:net/pg, no TLS and no MD5, so: plaintext TCP, cleartext + SCRAM-SHA-256 auth.
-// ponytail: no TLS (use an SSH tunnel for remote hosts), no md5 auth, no bind params, no COPY.
+// txiki.js has no node:net/pg and no MD5, so: cleartext + SCRAM-SHA-256 auth, TLS through ../tls.js.
+// ponytail: no md5 auth, no bind params, no COPY; TLS always verifies the certificate (no sslmode=require without a CA).
+import { startTls } from '../tls.js';
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const subtle = crypto.subtle;
@@ -49,11 +50,28 @@ async function scram(password, send, readAuth) {
   if (serverFinal !== `v=${expect}`) throw new Error('SCRAM: server signature mismatch');
 }
 
-export async function connect({ host = '127.0.0.1', port = 5432, user, password = '', database }) {
+const SSL_REQUEST = cat(i32(8), i32(80877103));
+
+// A connection to the server, encrypted when `tls` ({ sni, ca }) is given. Postgres starts in plaintext: send an
+// SSLRequest, and the server answers one byte, 'S' (go ahead) or 'N' (no TLS here).
+async function dial(host, port, tls) {
   const conn = await tjs.connect('tcp', host, port);
   const { readable, writable } = await conn.opened;
-  const reader = readable.getReader();
-  const writer = writable.getWriter();
+  let reader = readable.getReader(), writer = writable.getWriter();
+  if (!tls) return { reader, writer, close: () => conn.close() };
+  try {
+    await writer.write(SSL_REQUEST);
+    const { value } = await reader.read();
+    if (!value || value.length !== 1) throw new Error('unexpected reply to the TLS request');  // more than one byte = injected plaintext
+    if (value[0] === 69) throw new Error('This server is too old to speak TLS');  // 'E'
+    if (value[0] !== 83) throw new Error('This server does not accept TLS connections');  // not 'S'
+    const s = await startTls({ reader, writer, close: () => conn.close() }, tls);
+    return { reader: s.readable.getReader(), writer: s.writable.getWriter(), close: s.close };
+  } catch (e) { conn.close(); throw e; }
+}
+
+export async function connect({ host = '127.0.0.1', port = 5432, user, password = '', database, tls = null }) {
+  const { reader, writer, close: closeSocket } = await dial(host, port, tls);
   let buf = new Uint8Array(0);
   const need = async (n) => {
     while (buf.length < n) {
@@ -109,7 +127,7 @@ export async function connect({ host = '127.0.0.1', port = 5432, user, password 
       else if (code !== 0 && code !== 12) throw new Error('unsupported auth method ' + code);
     }
   } catch (e) {
-    conn.close();
+    closeSocket();
     throw e;
   }
 
@@ -178,11 +196,10 @@ export async function connect({ host = '127.0.0.1', port = 5432, user, password 
   // statement; the window is a few milliseconds.
   async function cancel() {
     if (!running || !pid) return false;
-    const c = await tjs.connect('tcp', host, port);
-    const { readable, writable } = await c.opened;
-    await writable.getWriter().write(cat(i32(16), i32(80877102), i32(pid), i32(secret)));
+    const c = await dial(host, port, tls);
+    await c.writer.write(cat(i32(16), i32(80877102), i32(pid), i32(secret)));
     // the server closes the socket once it has read the request; wait for that so the bytes are not cut off
-    await Promise.race([readable.getReader().read().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
+    await Promise.race([c.reader.read().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
     c.close();
     return true;
   }
@@ -208,7 +225,7 @@ export async function connect({ host = '127.0.0.1', port = 5432, user, password 
     select: (ref, limit, offset) => run(`select * from ${ref} limit ${+limit} offset ${+offset}`),
     close: async () => {
       try { send(msg('X', new Uint8Array(0))); } catch {}
-      conn.close();
+      closeSocket();
     },
   };
 }

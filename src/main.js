@@ -5,10 +5,11 @@ import { connect as connectSqlite } from './drivers/sqlite.js';
 import { openTunnel } from './tunnel.js';
 import { restoreWindow, trackWindow } from './windowstate.js';
 import { createCsvWriter } from './csv.js';
+import { readCa } from './tls.js';
 
 const drivers = {
-  postgres: (c, password) => connectPostgres({ host: c.host, port: +c.port || 5432, user: c.user, password, database: c.database }),
-  mysql: (c, password) => connectMysql({ host: c.host, port: +c.port || 3306, user: c.user, password, database: c.database }),
+  postgres: (c, password, tls) => connectPostgres({ host: c.host, port: +c.port || 5432, user: c.user, password, database: c.database, tls }),
+  mysql: (c, password, tls) => connectMysql({ host: c.host, port: +c.port || 3306, user: c.user, password, database: c.database, tls }),
   sqlite: (c) => connectSqlite({ path: c.path }),
 };
 
@@ -17,17 +18,26 @@ const DEFAULT_PORTS = { postgres: 5432, mysql: 3306 };
 const sessions = new Map(); // connection id -> driver handle
 let app;
 
+// Servers that insist on encryption refuse us in their own words; say what to turn on.
+const TLS_REFUSED = /no encryption|insecure transport|require_secure_transport/i;
+const explainTls = (e) => (TLS_REFUSED.test(String(e.message)) ? new Error(e.message + '. This server requires an encrypted connection: turn on "Use TLS" in the connection settings.') : e);
+
 const open = async (c, password) => {
   const driver = drivers[c.type];
   if (!driver) throw new Error('unsupported database type: ' + c.type);
-  if (!NETWORK_TYPES.includes(c.type) || !c.sshHost) return driver(c, password);
+  // The certificate must name the host the user typed, even when the socket goes through an SSH tunnel to 127.0.0.1.
+  const tls = NETWORK_TYPES.includes(c.type) && c.tls ? { sni: c.host || '127.0.0.1', ca: await readCa(c.tlsCa) } : null;
+  try { return await dial(c, password, tls, driver); } catch (e) { throw tls ? e : explainTls(e); }
+};
+const dial = async (c, password, tls, driver) => {
+  if (!NETWORK_TYPES.includes(c.type) || !c.sshHost) return driver(c, password, tls);
   // Dial the database through an `ssh -L` forward; the tunnel lives and dies with the session.
   const tunnel = await openTunnel({
     sshHost: c.sshHost, sshPort: c.sshPort || 22, sshUser: c.sshUser, keyPath: c.sshKey,
     host: c.host || '127.0.0.1', port: +c.port || DEFAULT_PORTS[c.type],
   });
   try {
-    const s = await driver({ ...c, host: '127.0.0.1', port: tunnel.port }, password);
+    const s = await driver({ ...c, host: '127.0.0.1', port: tunnel.port }, password, tls);
     return { ...s, close: async () => { await s.close(); tunnel.close(); } };
   } catch (e) {
     tunnel.close();

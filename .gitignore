@@ -13,3 +13,4 @@ node_modules/
 .claude/
 .agents/
 .remember/
+claude_session.txt
