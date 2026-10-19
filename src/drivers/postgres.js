@@ -1,7 +1,8 @@
 // Minimal Postgres wire-protocol client (simple query protocol, text results).
-// txiki.js has no node:net/pg and no MD5, so: cleartext + SCRAM-SHA-256 auth, TLS through ../tls.js.
-// ponytail: no md5 auth, no bind params, no COPY; TLS always verifies the certificate (no sslmode=require without a CA).
+// txiki.js has no node:net/pg and no MD5, so: cleartext, md5 (own MD5 in ../md5.js) and SCRAM-SHA-256 auth, TLS through ../tls.js.
+// ponytail: no bind params, no COPY; TLS always verifies the certificate (no sslmode=require without a CA).
 import { startTls } from '../tls.js';
+import { md5hex } from '../md5.js';
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const subtle = crypto.subtle;
@@ -131,7 +132,10 @@ export async function connect({ host = '127.0.0.1', port = 5432, user, password 
       const code = new DataView(m.body.buffer, m.body.byteOffset).getInt32(0);
       if (code === 3) send(msg('p', cstr(password)));
       else if (code === 10) await scram(password, send, readAuth);
-      else if (code === 5) throw new Error('md5 password auth is not supported; use scram-sha-256');
+      else if (code === 5) {  // md5: "md5" + md5(md5(password + user) as hex + the 4-byte salt)
+        const inner = enc.encode(md5hex(enc.encode(password + user)));
+        send(msg('p', cstr('md5' + md5hex(cat(inner, m.body.subarray(4, 8))))));
+      }
       else if (code !== 0 && code !== 12) throw new Error('unsupported auth method ' + code);
     }
   } catch (e) {

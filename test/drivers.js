@@ -37,6 +37,13 @@ const batch = p.query('create temp table c1(x int); insert into c1 values (1); s
 await sleep(300); await p.cancel(); await batch;
 eq((await p.query("select count(*) from pg_tables where tablename = 'c1'")).rows, [['0']], 'a cancelled multi-statement batch is rolled back as one');
 await p.close();
+const pm = await pg({ port: 54329, user: 'md5user', password: 'secret', database: 'postgres' });
+const pa = await pg({ port: 54329, user: 'tester', password: 'secret', database: 'postgres' });
+eq((await pa.query("select rolpassword like 'md5%' from pg_authid where rolname = 'md5user'")).rows, [['t']], 'pg md5 login: the account really uses an md5 password (negative control for the scram path)');
+await pa.close();
+eq((await pm.query('select name from people order by id')).rows, [['ada'], ['bob']], 'pg md5 login works');
+await pm.close();
+try { await pg({ port: 54329, user: 'md5user', password: 'wrong', database: 'postgres' }); throw 0; } catch (e) { eq(/password|authentication/i.test(e.message), true, 'pg md5 login: a wrong password is rejected'); }
 try { await pg({ port: 54329, user: 'tester', password: 'wrong', database: 'postgres' }); throw 0; } catch (e) { eq(/password|authentication/i.test(e.message), true, 'pg bad password rejected'); }
 
 const s = await lite({ path: ':memory:' });

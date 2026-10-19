@@ -53,7 +53,7 @@ It started as a rebuild of Arctype, a lovely SQL client that is no longer mainta
 </p>
 
 ### Connect anywhere
-- **PostgreSQL** (password and SCRAM-SHA-256 logins), **MySQL** (both `caching_sha2_password` and `mysql_native_password`), and **SQLite** files.
+- **PostgreSQL** (password, md5 and SCRAM-SHA-256 logins), **MySQL** (both `caching_sha2_password` and `mysql_native_password`), and **SQLite** files.
 - **TLS** for PostgreSQL and MySQL, including cloud databases that require it. The certificate is always verified.
 - **SSH tunnels** for remote databases, using your keys or ssh-agent.
 - Test a connection from the form before you save it.
@@ -122,6 +122,7 @@ The app icon comes from `icon.png`; `python3 tools/make-icon.py some-image.jpg` 
 The tests live in `test/`. The database tests need disposable servers, and the header of each file says what it expects.
 
 ```sh
+~/.tinyjs/bin/tjs run test/md5.js           # MD5 (no services needed)
 ~/.tinyjs/bin/tjs run test/csv.js           # CSV format and file writer (no services needed)
 ~/.tinyjs/bin/tjs run test/windowstate.js   # window position rules (no services needed)
 test/postgres-server.sh start               # a throwaway PostgreSQL (uses one you have installed)
