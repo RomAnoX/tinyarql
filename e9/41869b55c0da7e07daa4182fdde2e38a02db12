@@ -1,0 +1,35 @@
+test/postgres-server.sh
+  s_1e0c32301a677f::t_9a8e7ba34e1f7a 36,45-47,49,51
+README.md
+  s_1e0c32301a677f::t_0d5cbd1730274b 56,125
+CLAUDE.md
+  s_1e0c32301a677f::t_0d5cbd1730274b 22,45,77,127,139
+test/drivers.js
+  s_1e0c32301a677f::t_865bffcce9b4d9 41-43
+  s_1e0c32301a677f::t_9a8e7ba34e1f7a 40,44-46
+src/drivers/postgres.js
+  s_1e0c32301a677f::t_9a8e7ba34e1f7a 2-3,5,135-138
+test/md5.js
+  s_1e0c32301a677f::t_0674627630712e 16
+  s_1e0c32301a677f::t_f6bf500aaad4b2 1-15,17-21
+src/md5.js
+  s_1e0c32301a677f::t_f4d924a4bc93af 1-33
+tinyjs.json
+  s_1e0c32301a677f::t_49d1693ffab76d 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e941869b55c0da7e07daa4182fdde2e38a02db12",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
