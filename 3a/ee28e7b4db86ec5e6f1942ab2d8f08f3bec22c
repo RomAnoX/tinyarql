@@ -1,0 +1,56 @@
+test/postgres-server.sh
+  s_1e0c32301a677f::t_f201c18cdc7bd1 32-37,39,45,48
+  s_1e0c32301a677f::t_50d395b9397d08 46
+src/drivers/mysql.js
+  s_1e0c32301a677f::t_89c5672e97c97b 1-7,16,95-96,99-101,138,171,173-185,205-206
+CLAUDE.md
+  s_1e0c32301a677f::t_40653b89922ec0 22,44,77-81,128,137,159,175
+  s_1e0c32301a677f::t_ddd24dd4f48217 89,174
+test/mysql-server.sh
+  s_1e0c32301a677f::t_cefce3b1457a6e 30-32,35,44-46,55
+.gitignore
+  s_1e0c32301a677f::t_6418672dffdd38 16
+README.md
+  s_1e0c32301a677f::t_40653b89922ec0 57,92,131
+src/frontend/app.js
+  s_1e0c32301a677f::t_b9b1ccb1dc3cd1 510,513,516-517,527,529,542,547
+src/tls.js
+  s_1e0c32301a677f::t_137a118d69dc7f 1-11,13-18,20-23,25-27,32-33,35-51
+  s_1e0c32301a677f::t_071bd096eb60ad 24,28-29
+  s_1e0c32301a677f::t_2c6cc0dfffba6f 30-31
+  s_1e0c32301a677f::t_2c31e87578139e 12,19
+  s_1e0c32301a677f::t_0c334f6a8f9cf4 34
+src/main.js
+  s_1e0c32301a677f::t_136abb34e985af 8,11-12,21-24,28-33,40
+src/drivers/postgres.js
+  s_1e0c32301a677f::t_2c6cc0dfffba6f 69
+  s_1e0c32301a677f::t_0c334f6a8f9cf4 2-4,53-57,60-68,70-74,130,199-200,202,228
+src/frontend/index.html
+  s_1e0c32301a677f::t_b9b1ccb1dc3cd1 102-106
+test/ui-driver.js
+  s_1e0c32301a677f::t_59a54fd0d8162c 248-257
+  s_1e0c32301a677f::t_66220fb260cbeb 1087,1090,1095
+test/tls.js
+  s_1e0c32301a677f::t_791ae2309b6810 18,36,40
+  s_1e0c32301a677f::t_c123d6946d10fd 63-64
+  s_1e0c32301a677f::t_39de0d419d46d1 1-17,19-35,37-39,41-62,66-76
+  s_1e0c32301a677f::t_304ab5fbe7eb4c 65
+tinyjs.json
+  s_1e0c32301a677f::t_0156a09f6060b7 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3aee28e7b4db86ec5e6f1942ab2d8f08f3bec22c",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
