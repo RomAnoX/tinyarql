@@ -1,0 +1,45 @@
+src/drivers/mysql.js
+  s_1e0c32301a677f::t_e9df5c41ae81d1 180-182
+test/tls.js
+  s_1e0c32301a677f::t_478851799eed2b 37-44,68-77,91-95
+src/main.js
+  s_1e0c32301a677f::t_bd12724eeffcb5 29
+test/ui-driver.js
+  s_1e0c32301a677f::t_478851799eed2b 255-260
+src/frontend/app.js
+  s_1e0c32301a677f::t_bd12724eeffcb5 511-512,515,519,530,533,547
+CLAUDE.md
+  s_1e0c32301a677f::t_d137185dd04494 78-79,160,176
+src/frontend/index.html
+  s_1e0c32301a677f::t_bd12724eeffcb5 105-107
+src/tls.js
+  s_1e0c32301a677f::t_5765169d0cfe8d 83
+  s_1e0c32301a677f::t_cee022fcaf16e0 64
+  s_1e0c32301a677f::t_a8832f829732e5 78-79
+  s_1e0c32301a677f::t_e9df5c41ae81d1 5,8-10,14-39,41-43,45,47,52-63,65-77,80-82,84-86
+  s_1e0c32301a677f::t_7d53d41da220a4 87
+README.md
+  s_1e0c32301a677f::t_d137185dd04494 92
+src/drivers/postgres.js
+  s_1e0c32301a677f::t_e9df5c41ae81d1 58-78
+src/frontend/style.css
+  s_1e0c32301a677f::t_478851799eed2b 40
+tinyjs.json
+  s_1e0c32301a677f::t_ade6c43c48f8a4 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "778fc219603ed227f890c04dd0b1025073f60e85",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
