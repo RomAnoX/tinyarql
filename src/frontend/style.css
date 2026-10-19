@@ -116,6 +116,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 .searchbox button { flex: none; width: 20px; height: 20px; padding: 0; justify-content: center; border: 0; border-radius: 4px; background: none; color: var(--dim); }
 .searchbox button:hover:not(:disabled) { color: var(--text); background: var(--rule); }
 mark { background: var(--sel); color: inherit; border-radius: 2px; }
+#detailFindBar { margin: 6px 10px 0; }
+#detailFindCount { flex: none; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+::highlight(find) { background: var(--sel); color: inherit; }
+::highlight(find-current) { background: var(--accent); color: var(--accent-ink); }
 .sq { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 28px; cursor: pointer; color: var(--dim); }
 .sq .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sq:hover { color: var(--text); background: var(--raise); }

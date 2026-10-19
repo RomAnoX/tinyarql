@@ -60,6 +60,13 @@
         <button id="detailCopy"><i data-icon="copy" data-size="14"></i><span>Copy</span></button>
         <button id="detailClose" class="icon" title="Close (Esc)" aria-label="Close panel"><i data-icon="x"></i></button>
       </div>
+      <div class="searchbox" id="detailFindBar" hidden>
+        <i data-icon="search" data-size="14"></i>
+        <input id="detailFind" type="text" placeholder="Find in this value" aria-label="Find in this value" autocomplete="off" spellcheck="false">
+        <span id="detailFindCount" aria-live="polite"></span>
+        <button id="detailFindPrev" class="icon" title="Previous match (Shift+Enter)" aria-label="Previous match"><i data-icon="chevron-left" data-size="12"></i></button>
+        <button id="detailFindNext" class="icon" title="Next match (Enter)" aria-label="Next match"><i data-icon="chevron-right" data-size="12"></i></button>
+      </div>
       <div id="detailBody"></div>
     </section>
   </div>

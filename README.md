@@ -46,6 +46,7 @@ It started as a rebuild of Arctype, a lovely SQL client that is no longer mainta
 - Typed result columns: numbers right-aligned, `NULL` clearly marked, and the column type shown under its name.
 - **Browse tables** page by page, without writing a query.
 - Click any cell for a **detail panel**, and open JSON columns as a collapsible tree, as indented and coloured JSON, or as the raw text exactly as the database returned it.
+- **Find inside a value** with ⌘F in the detail panel: matches are highlighted in the tree, the JSON view and the raw text, and Enter steps through them (collapsed nodes open as you go).
 - **Export results to CSV.** For big results it re-runs the query and streams every row straight to disk, so you are not limited to what fits on screen, and you can stop it part-way.
 
 <p align="center">
@@ -85,6 +86,7 @@ Requires macOS 15 or later. The download is a universal build for Intel and Appl
 | ⌘ O | Open `.sql` files |
 | ⌘ E | Export the query as `.sql` |
 | ⌘ ⇧ E | Export the results as CSV |
+| ⌘ F | Find in the open cell detail |
 | ⌘ , | Settings |
 
 ## Good to know

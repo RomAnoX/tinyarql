@@ -247,7 +247,60 @@ function renderDetail() {
     : json.ok && detail.mode === 'tree' ? tree(json.value)
     : json.ok && detail.mode === 'json' ? `<pre class="jsonview">${jsonHtml(v)}</pre>`
     : `<pre>${esc(v)}</pre>`;
+  $('detailFindBar').hidden = v === null || !CSS.highlights;
+  runFind();
 }
+
+// ---- find inside the detail panel: Tree, Json and Raw alike ----
+// Matches are Ranges over the text already on screen, painted with the CSS Custom Highlight API, so the markup is not
+// rewritten. Case-insensitive, one text node at a time (a match cannot span a key and its value). Tree summaries
+// ("{ 3 }") are not searched. Matches inside a collapsed node count; going to one opens it.
+const FIND_MAX = 5000;
+let findHits = [], findAt = 0;
+function paintFind() {
+  CSS.highlights.delete('find'); CSS.highlights.delete('find-current');
+  if (findHits.length) {
+    CSS.highlights.set('find', new Highlight(...findHits));
+    CSS.highlights.set('find-current', new Highlight(findHits[findAt]));
+  }
+  const q = $('detailFind').value;
+  $('detailFindCount').textContent = !q ? '' : findHits.length ? `${findAt + 1} of ${findHits.length}${findHits.length >= FIND_MAX ? '+' : ''}` : 'No matches';
+}
+function runFind() {
+  findHits = []; findAt = 0;
+  const q = $('detailFind').value.toLowerCase();
+  if (q && !$('detailFindBar').hidden) {
+    const walker = document.createTreeWalker($('detailBody'), NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement.closest('summary') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+    for (let n; (n = walker.nextNode()) && findHits.length < FIND_MAX;) {
+      const t = n.data.toLowerCase();
+      for (let i = t.indexOf(q); i >= 0 && findHits.length < FIND_MAX; i = t.indexOf(q, i + q.length)) {
+        const r = new Range(); r.setStart(n, i); r.setEnd(n, i + q.length); findHits.push(r);
+      }
+    }
+  }
+  paintFind();
+}
+function findGo(delta) {
+  if (!findHits.length) return;
+  findAt = (findAt + delta + findHits.length) % findHits.length;
+  const at = findHits[findAt].startContainer.parentElement;
+  for (let d = at.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true;
+  paintFind();
+  at.scrollIntoView({ block: 'center', inline: 'nearest' });
+}
+$('detailFind').addEventListener('input', runFind);
+$('detailFind').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); findGo(e.shiftKey ? -1 : 1); }
+  else if (e.key === 'Escape' && $('detailFind').value) { e.stopPropagation(); $('detailFind').value = ''; runFind(); }  // the first Esc only clears; the next closes the panel
+});
+$('detailFindNext').onclick = () => findGo(1);
+$('detailFindPrev').onclick = () => findGo(-1);
+// ⌘F with the panel open finds in the value (the editor keeps its own ⌘F).
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'f' && e.metaKey && !e.ctrlKey && !e.altKey && detail && !$('detailFindBar').hidden && !document.querySelector('dialog[open]') && !e.target.closest?.('#sql')) {
+    e.preventDefault(); $('detailFind').focus(); $('detailFind').select();
+  }
+});
 const closeDetail = () => { detail = null; renderDetail(); };
 
 let showingResult = false;  // false = the grid area shows the empty/welcome state
