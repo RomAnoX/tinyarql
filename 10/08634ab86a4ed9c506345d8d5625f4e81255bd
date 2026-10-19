@@ -1,0 +1,30 @@
+src/frontend/app.js
+  s_1e0c32301a677f::t_c4bdf2ff2932e4 250-251,253-303
+src/frontend/index.html
+  s_1e0c32301a677f::t_c4bdf2ff2932e4 63-69
+test/ui-driver.js
+  s_1e0c32301a677f::t_d643b6639af710 363-405,415-421
+README.md
+  s_1e0c32301a677f::t_b7292f6c16bd07 49,89
+src/frontend/style.css
+  s_1e0c32301a677f::t_c4bdf2ff2932e4 119-122
+CLAUDE.md
+  s_1e0c32301a677f::t_493e571016aad0 167
+  s_1e0c32301a677f::t_b7292f6c16bd07 105,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1008634ab86a4ed9c506345d8d5625f4e81255bd",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
