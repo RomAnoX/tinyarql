@@ -37,6 +37,7 @@ body { margin: 0; height: 100vh; display: flex; background: var(--ground); color
 code { font-family: var(--mono); font-size: 12px; background: var(--ground); padding: 1px 5px; border-radius: 4px; }
 .spacer { flex: 1; }
 .hint { color: var(--dim); font-size: 12px; margin: 0 0 8px; }
+.hint.warn { color: var(--bad); }
 .i { flex: none; }
 
 button { display: inline-flex; align-items: center; gap: 6px; background: var(--panel); color: var(--text); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 12px; font: inherit; cursor: pointer; }

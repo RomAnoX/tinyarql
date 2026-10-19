@@ -177,7 +177,9 @@ async function open({ host, port, user, password = '', database, greetingTimeout
       flags |= CLIENT.SSL;
       seq = write(seq, head(flags));  // the SSLRequest: the login packet's first 32 bytes, nothing more
       if (pos !== buf.length) throw new Error('unexpected data before the TLS handshake');  // plaintext injected ahead of TLS
-      const s = await startTls({ reader, writer, close: () => conn.close() }, tls);
+      if (tls.probe) return { reader, writer, close: () => conn.close() };  // for startTls to read the certificate through
+      const s = await startTls({ reader, writer, close: () => conn.close() }, tls,
+        () => open({ host, port, user, password, database, greetingTimeoutMs, tls: { probe: true } }));
       reader = s.readable.getReader(); writer = s.writable.getWriter(); closeSocket = s.close;
       buf = new Uint8Array(0); pos = 0;
     }

@@ -55,19 +55,27 @@ const SSL_REQUEST = cat(i32(8), i32(80877103));
 // A connection to the server, encrypted when `tls` ({ sni, ca }) is given. Postgres starts in plaintext: send an
 // SSLRequest, and the server answers one byte, 'S' (go ahead) or 'N' (no TLS here).
 async function dial(host, port, tls) {
-  const conn = await tjs.connect('tcp', host, port);
-  const { readable, writable } = await conn.opened;
-  let reader = readable.getReader(), writer = writable.getWriter();
-  if (!tls) return { reader, writer, close: () => conn.close() };
-  try {
-    await writer.write(SSL_REQUEST);
-    const { value } = await reader.read();
-    if (!value || value.length !== 1) throw new Error('unexpected reply to the TLS request');  // more than one byte = injected plaintext
-    if (value[0] === 69) throw new Error('This server is too old to speak TLS');  // 'E'
-    if (value[0] !== 83) throw new Error('This server does not accept TLS connections');  // not 'S'
-    const s = await startTls({ reader, writer, close: () => conn.close() }, tls);
-    return { reader: s.readable.getReader(), writer: s.writable.getWriter(), close: s.close };
-  } catch (e) { conn.close(); throw e; }
+  // A connection that has done the plaintext part: the SSLRequest has been sent and answered 'S'.
+  const preamble = async () => {
+    const conn = await tjs.connect('tcp', host, port);
+    const { readable, writable } = await conn.opened;
+    const reader = readable.getReader(), writer = writable.getWriter();
+    try {
+      await writer.write(SSL_REQUEST);
+      const { value } = await reader.read();
+      if (!value || value.length !== 1) throw new Error('unexpected reply to the TLS request');  // more than one byte = injected plaintext
+      if (value[0] === 69) throw new Error('This server is too old to speak TLS');  // 'E'
+      if (value[0] !== 83) throw new Error('This server does not accept TLS connections');  // not 'S'
+    } catch (e) { conn.close(); throw e; }
+    return { reader, writer, close: () => conn.close() };
+  };
+  if (!tls) {
+    const conn = await tjs.connect('tcp', host, port);
+    const { readable, writable } = await conn.opened;
+    return { reader: readable.getReader(), writer: writable.getWriter(), close: () => conn.close() };
+  }
+  const s = await startTls(await preamble(), tls, preamble);
+  return { reader: s.readable.getReader(), writer: s.writable.getWriter(), close: s.close };
 }
 
 export async function connect({ host = '127.0.0.1', port = 5432, user, password = '', database, tls = null }) {

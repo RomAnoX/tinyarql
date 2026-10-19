@@ -3,6 +3,6 @@
   "title": "TinyArQL",
   "size": "960x640",
   "id": "com.example.tinyarql",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minTinyjsVersion": "0.42.2"
 }

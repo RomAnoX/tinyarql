@@ -26,7 +26,7 @@ const open = async (c, password) => {
   const driver = drivers[c.type];
   if (!driver) throw new Error('unsupported database type: ' + c.type);
   // The certificate must name the host the user typed, even when the socket goes through an SSH tunnel to 127.0.0.1.
-  const tls = NETWORK_TYPES.includes(c.type) && c.tls ? { sni: c.host || '127.0.0.1', ca: await readCa(c.tlsCa) } : null;
+  const tls = NETWORK_TYPES.includes(c.type) && c.tls ? { sni: c.host || '127.0.0.1', ca: c.tlsInsecure ? undefined : await readCa(c.tlsCa), insecure: !!c.tlsInsecure } : null;
   try { return await dial(c, password, tls, driver); } catch (e) { throw tls ? e : explainTls(e); }
 };
 const dial = async (c, password, tls, driver) => {

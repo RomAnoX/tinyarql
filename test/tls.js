@@ -34,6 +34,14 @@ eq(await fails(() => pg({ ...pgBase }), /no encryption/), true, 'pg: negative co
 eq(await fails(() => pg({ ...pgBase, tls: { sni: 'localhost' } }), CERT), true, 'pg: a self-signed certificate is refused when its CA is not given');
 eq(await fails(() => pg({ ...pgBase, tls: { sni: 'other.example', ca: pgTls.ca } }), CERT), true, 'pg: a certificate for another host name is refused, even with its CA given');
 eq(await fails(() => pg({ ...pgBase, user: 'tester', tls: { sni: 'localhost', ca: myCa } }), CERT), true, 'pg: a certificate from a different CA is refused');
+const pi = await pg({ ...pgBase, tls: { sni: 'other.example', insecure: true } });
+eq((await pi.query('select ssl from pg_stat_ssl where pid = pg_backend_pid()')).rows, [['t']], 'pg insecure: no CA and a wrong host name still connect, encrypted');
+eq(await pi.cancel(), false, 'pg insecure: nothing running yet');
+const islow = pi.query('select pg_sleep(30)').catch((e) => e);
+await sleep(300); await pi.cancel();
+ok((await islow).cancelled === true, 'pg insecure: cancel works (its second connection pins the certificate too)');
+await pi.close();
+eq(await fails(() => pg({ ...pgBase, user: 'tester', password: 'wrong', tls: { sni: 'x', insecure: true } }), /password|authentication/i), true, 'pg insecure: a bad password still fails as such');
 
 // ---- MySQL ----
 const myBase = { host: '127.0.0.1', port: 33061, password: 'secret', database: 'testdb' };
@@ -57,6 +65,16 @@ eq(await fails(() => my({ ...myBase, user: 'tlsonly', tls: { sni: 'other.example
 const plain = await my({ ...myBase, user: 'tester', tls: myTls });
 eq((await plain.query('select 2')).rows, [['2']], 'mysql: TLS also works for an account that does not require it (caching_sha2 full login inside TLS)');
 await plain.close();
+for (const user of ['tlsonly', 'tlsnative']) {
+  const c = await my({ ...myBase, user, tls: { sni: 'other.example', insecure: true } });
+  eq((await c.query("show session status like 'Ssl_version'")).rows[0][1].startsWith('TLS'), true, `mysql insecure ${user}: no CA and a wrong host name still connect, encrypted`);
+  await c.close();
+}
+const ic = await my({ ...myBase, user: 'tlsonly', tls: { sni: 'x', insecure: true } });
+const islowMy = ic.query('select count(*) from information_schema.columns a, information_schema.columns b, information_schema.columns c').catch((e) => e);
+await sleep(400); await ic.cancel();
+ok((await islowMy).cancelled === true, 'mysql insecure: cancel works');
+await ic.close();
 
 // ---- through the backend API (the connection form's fields) ----
 const mem = new Map();
@@ -70,6 +88,11 @@ await api.disconnect({ id: good.id });
 const hint = await fails(async () => api.connect({ id: (await conn({ tls: false })).id }), /Use TLS/);
 eq(hint, true, 'api: a TLS-only server reached without TLS says to turn on "Use TLS"');
 eq(await fails(async () => api.connect({ id: (await conn({ tls: true })).id }), CERT), true, 'api: tls on without the CA file explains the certificate problem');
+const insecure = await conn({ tls: true, tlsInsecure: true });
+await api.connect({ id: insecure.id });
+eq((await api.query({ id: insecure.id, sql: 'select ssl from pg_stat_ssl where pid = pg_backend_pid()' })).rows, [['t']], 'api: tlsInsecure connects without a CA file, encrypted');
+await api.disconnect({ id: insecure.id });
+eq(await fails(async () => api.connect({ id: (await conn({ tls: false, tlsInsecure: true })).id }), /Use TLS/), true, 'api: tlsInsecure without tls on does nothing (the "Use TLS" hint shows)');
 eq(await fails(async () => api.connect({ id: (await conn({ tls: true, tlsCa: '/nope/ca.pem' })).id }), /Could not read the CA/), true, 'api: a missing CA file is reported plainly');
 eq(await fails(async () => api.connect({ id: (await conn({ tls: true, tlsCa: '/etc/hosts' })).id }), /not a PEM certificate/), true, 'api: a file that is not a certificate is reported plainly');
 console.log('ALL PASS');

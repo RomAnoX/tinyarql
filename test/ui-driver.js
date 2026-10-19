@@ -252,6 +252,12 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     f.elements.tlsCa.value = '/some/ca.pem';
     const tlsOn = formConn().conn;
     check('the form saves tls on with its CA file', tlsOn.tls === true && tlsOn.tlsCa === '/some/ca.pem', JSON.stringify(tlsOn));
+    const warn = document.getElementById('tlsInsecureHint');
+    check('the no-verify warning is hidden until chosen', warn.hidden && !f.elements.tlsCa.disabled);
+    f.elements.tlsInsecure.checked = true; f.elements.tlsInsecure.dispatchEvent(new Event('change'));
+    const tlsRaw = formConn().conn;
+    check('choosing it shows the warning, disables the CA field and saves tlsInsecure', !warn.hidden && f.elements.tlsCa.disabled && tlsRaw.tlsInsecure === true, JSON.stringify(tlsRaw));
+    f.elements.tlsInsecure.checked = false; f.elements.tlsInsecure.dispatchEvent(new Event('change'));
     f.elements.tlsOn.checked = false; f.elements.tlsOn.dispatchEvent(new Event('change'));
     const tlsOff = formConn().conn;
     check('unticking hides it and drops the CA file', tlsBox.hidden && tlsOff.tls === false && tlsOff.tlsCa === '', JSON.stringify(tlsOff));

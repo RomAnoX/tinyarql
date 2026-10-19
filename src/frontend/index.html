@@ -102,7 +102,9 @@
       <label class="check"><input type="checkbox" name="tlsOn"> Use TLS (encrypt the connection)</label>
       <div id="tls" hidden>
         <label>CA certificate <span class="row"><input name="tlsCa" placeholder="(public certificate authorities)"><button type="button" id="pickCa"><i data-icon="folder-open" data-size="14"></i>Browse…</button></span></label>
-        <p class="hint">The server's certificate is always checked, including that it names the host above. Leave the file empty for a server with a certificate from a public authority, as most cloud databases have. For a private or self-signed certificate, choose the .pem file of the CA that signed it (or the certificate itself).</p>
+        <label class="check"><input type="checkbox" name="tlsInsecure"> Don't verify the certificate</label>
+        <p class="hint warn" id="tlsInsecureHint" hidden>The connection is encrypted, but anyone able to intercept it could pose as the server. Only for servers on networks you trust. It works for self-signed certificates, not for expired ones, and needs the openssl command.</p>
+        <p class="hint">Unless the box above is ticked, the server's certificate is always checked, including that it names the host above. Leave the file empty for a server with a certificate from a public authority, as most cloud databases have. For a private or self-signed certificate, choose the .pem file of the CA that signed it (or the certificate itself).</p>
       </div>
     </div>
     <div data-for="sqlite">

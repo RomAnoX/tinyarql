@@ -89,7 +89,7 @@ Requires macOS 15 or later. The download is a universal build for Intel and Appl
 
 ## Good to know
 
-- **TLS always verifies the certificate.** There is no "encrypt but don't check" mode. A server with a public certificate works as is; for a private or self-signed one, choose its CA's `.pem` file in the connection settings. MySQL's auto-generated certificates carry no host name, so they fail the name check: give the server a certificate for its host name.
+- **TLS verifies the certificate by default.** For a private or self-signed certificate, choose its CA's `.pem` file in the connection settings. There is also a **Don't verify the certificate** option (encrypts, but cannot tell the real server from an impostor): it needs the `openssl` command (always present on macOS) and works for self-signed certificates, not expired ones. MySQL's auto-generated certificates carry no host name, so use that option for them or give the server a proper certificate.
 - **MySQL** has been tested against MySQL 8.0 only. MariaDB and MySQL 5.7 should work with the standard login but are untested.
 - **SQLite queries can't be stopped** once started, because the SQLite library is synchronous.
 - **macOS first.** It is built and tested on macOS. tinyjs can target Windows and Linux, but this has not been tried there.

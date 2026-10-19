@@ -508,12 +508,15 @@ const showType = () => {
   document.querySelectorAll('[data-for]').forEach((d) => { d.hidden = !d.dataset.for.split(' ').includes(form.type.value); });
   $('ssh').hidden = !form.sshOn.checked;
   $('tls').hidden = !form.tlsOn.checked;
+  $('tlsInsecureHint').hidden = !form.tlsInsecure.checked;
+  form.tlsCa.disabled = form.tlsInsecure.checked;
 };
 const formConn = () => {
-  const { password, sshOn, tlsOn, ...conn } = Object.fromEntries(new FormData(form));
+  const { password, sshOn, tlsOn, tlsInsecure, ...conn } = Object.fromEntries(new FormData(form));
   // Tunnel fields only count while the box is ticked; an unticked box clears a saved tunnel.
   if (!sshOn) for (const k of ['sshHost', 'sshPort', 'sshUser', 'sshKey']) conn[k] = '';
   conn.tls = !!tlsOn;
+  conn.tlsInsecure = !!tlsOn && !!tlsInsecure;
   if (!tlsOn) conn.tlsCa = '';
   conn.id = form.dataset.id || undefined;
   return { conn, password };
@@ -524,9 +527,10 @@ function openForm(c, type) {
   form.dataset.id = c?.id || '';
   $('dlgTitle').textContent = c ? 'Edit connection' : 'New connection';
   formNote();
-  for (const [k, v] of Object.entries(c || {})) if (form.elements[k] && !['password', 'tls'].includes(k)) form.elements[k].value = v;
+  for (const [k, v] of Object.entries(c || {})) if (form.elements[k] && !['password', 'tls', 'tlsInsecure'].includes(k)) form.elements[k].value = v;
   form.sshOn.checked = !!c?.sshHost;
   form.tlsOn.checked = !!c?.tls;
+  form.tlsInsecure.checked = !!c?.tlsInsecure;
   if (!c && type) { form.type.value = type; applyPortDefault(); }
   showType();
   $('dlg').showModal();
@@ -540,6 +544,7 @@ function applyPortDefault() {
 form.type.addEventListener('change', () => { applyPortDefault(); showType(); });
 form.sshOn.addEventListener('change', showType);
 form.tlsOn.addEventListener('change', showType);
+form.tlsInsecure.addEventListener('change', showType);
 $('addConn').onclick = () => openForm();
 $('cancel').onclick = () => $('dlg').close();
 $('pick').onclick = async () => { const p = await tiny.dialog.openFile(); if (p) form.path.value = p; };
