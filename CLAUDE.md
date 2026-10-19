@@ -163,7 +163,7 @@ Release checklist (what v0.1.0 followed): bump `version` in `tinyjs.json`; run t
 - Notarization; real Apple Silicon testing; Windows and Linux are untried.
 - MySQL tested on 8.0 only (MariaDB, 5.7 untested); only the two logins above.
 - SQLite: cannot be stopped; a zero-row result has no header.
-- Ideas not built: exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
+- Ideas not built: an eye icon on the connection dialog's password field to show or hide the password (needs an `aria-label`, and the field must go back to hidden when the dialog closes), exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
 
 ## Lessons (things that went wrong once)
 
