@@ -1,0 +1,41 @@
+test/ui-driver.js
+  s_1e0c32301a677f::t_2da897f91bce93 330-332,335-343
+  s_1e0c32301a677f::t_3c06c4a8ab9db4 333-334
+  s_1e0c32301a677f::t_772065c80b4e6f 238-319
+src/frontend/style.css
+  s_1e0c32301a677f::t_3c06c4a8ab9db4 244
+  s_1e0c32301a677f::t_36c94c3c245672 64,245-249
+  s_1e0c32301a677f::t_ec4e1076b47d17 242-243
+src/frontend/icons.js
+  s_1e0c32301a677f::t_00638219e4fd89 6
+README.md
+  s_1e0c32301a677f::t_b3ec9b088a9ed6 29
+tools/editor/icons.mjs
+  s_1e0c32301a677f::t_00638219e4fd89 6
+src/frontend/app.js
+  s_1e0c32301a677f::t_c7f1d959c5f053 696,718-728
+  s_1e0c32301a677f::t_36c94c3c245672 29,31-32,127-238,247,273,298,697,780,1279
+CLAUDE.md
+  s_1e0c32301a677f::t_042dbea2e5ff25 99,169
+  s_1e0c32301a677f::t_b3ec9b088a9ed6 72,114
+src/frontend/index.html
+  s_1e0c32301a677f::t_36c94c3c245672 92,94,141-146
+  s_1e0c32301a677f::t_c7f1d959c5f053 99
+  s_1e0c32301a677f::t_1f9f2644ffbfc7 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1a46f332fc00da7ec812fa86395344c666e8c40",
+  "prompts": {},
+  "sessions": {
+    "s_1e0c32301a677f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a0063a-771c-47e6-9873-2410d1857043",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
