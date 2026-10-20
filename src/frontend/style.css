@@ -61,9 +61,7 @@ input:focus-visible, select:focus-visible { outline-offset: 0; }
 .segs button.on, .segs button[aria-checked=true] { background: var(--raise); border-color: var(--accent-line); position: relative; }
 
 /* where you are: a 3px edge in the connection's environment colour */
-[data-env=local] { --env: var(--env-local); }
-[data-env=staging] { --env: var(--env-staging); }
-[data-env=production] { --env: var(--env-production); }
+/* each environment's --env rule is written by applyEnvStyles() (app.js) into <style id="envStyles"> */
 #envBar { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 20; background: var(--env, transparent); }
 .env { color: var(--env, var(--dim)); border: 1px solid var(--env, var(--rule)); border-radius: 4px; padding: 0 6px; font-size: 11px; line-height: 1.5; }
 
@@ -241,6 +239,14 @@ dialog label input, dialog label select { display: block; width: 100%; margin-to
 dialog label.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
 dialog label.check input { width: auto; margin: 0; }
 dialog .row { display: flex; gap: 6px; }
+dialog label .row { margin-top: 4px; }
+dialog label .row input { margin-top: 0; }  /* the gap sits on the row, so a button beside the field lines up with it */
+dialog .row button.icon { height: auto; align-self: stretch; width: 34px; }  /* the same height as the field beside it, not the 28px of a toolbar button */
+#envList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.envrow { display: flex; align-items: center; gap: 6px; }
+.envrow .envname { flex: 1; min-width: 0; color: var(--text); }
+.envrow input[type=color] { flex: none; width: 36px; height: 28px; padding: 2px; background: var(--ground); border: 1px solid var(--rule); border-radius: 6px; cursor: pointer; }
+#envNote:empty { display: none; }
 dialog .field { margin-bottom: 12px; }
 dialog .field > span { display: block; color: var(--dim); margin-bottom: 4px; }
 .note { display: flex; align-items: flex-start; gap: 8px; white-space: pre-wrap; min-height: 0; }

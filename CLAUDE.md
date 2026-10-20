@@ -69,7 +69,7 @@ Sessions are kept in a `Map` by connection id. `open()` creates a driver session
 
 Main state in `app.js`: `conns`, `active` (the current tab's connection), `tables` (present = connected), `tabs`/`currentId`, `queries`, `running`, `result`/`detail`/`view` (what the grid shows). Rendering is string-based and rebuilds lists wholesale, so focus is captured and restored in `renderConns`, `renderTabs` and `renderSaved`.
 
-**Persistence (`tiny.store`) keys:** `connections` (no secrets), `settings` `{vim, theme}`, `layout` `{editorHeight, sidebarWidth, detailWidth}`, `tabs` `{current, list:[{id,title,sql,connId,savedId,origin}]}`, `queries` `[{id,name,sql,connId,updatedAt}]`, `window` `{x,y,width,height}` (written by the backend). Passwords go in the keychain via `app.secrets` under `conn:<id>`; never in the store. Results are never persisted.
+**Persistence (`tiny.store`) keys:** `connections` (no secrets), `settings` `{vim, theme}`, `layout` `{editorHeight, sidebarWidth, detailWidth}`, `tabs` `{current, list:[{id,title,sql,connId,savedId,origin}]}`, `queries` `[{id,name,sql,connId,updatedAt}]`, `environments` `[{id,name,color?}]` (absent = the three defaults), `window` `{x,y,width,height}` (written by the backend). Passwords go in the keychain via `app.secrets` under `conn:<id>`; never in the store. Results are never persisted.
 
 ## Decisions (and why)
 
@@ -96,6 +96,7 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 - Tabs persist and restore. A restored tab starts offline: **Run connects first**, then runs.
 - **Reordering** uses pointer events, not HTML5 drag and drop (testable, no clash with the window's file-drop handler). Live reorder, auto-scroll at the edges, Esc cancels, the picked-up tab becomes selected, the drop slot is decided from the pointer (not the clamped position), redraws are held while dragging. Keyboard: Alt+←/→.
 - **Saved queries** are a named library in the store. Names are unique (case-insensitive; replacing asks first). A search box matches every word against name or SQL. Open/export `.sql`: opened files are normalized to `\n`; a tab that came from or went to a file stores `origin {path, hash}` and counts as "unsaved" only while its text differs (a hash, not a copy). Files are text only, up to 5 MB.
+- The connection form's password field has an eye button (`aria-pressed`, label flips between Show and Hide password, icon between `eye` and `eye-off`). The password always starts hidden and is hidden again when the dialog closes, so it is never left showing for the next connection.
 - Closing a tab with unsaved text asks first. Deleting a connection or saved query asks first, names the item, and says what happens.
 
 ### Results
@@ -110,6 +111,7 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 - Geist Mono (bundled, shared by editor, grid and panels); UI uses the system font. Lucide icons inline via `icon(name, size)`. State is never colour alone (connected and offline plugs differ in shape; the hollow/filled and spinner states have labels or `aria-busy`).
 - Avoid generic tells: no all-caps labels, no middle-dot separators, no "label above everything". Visible focus rings, targets at least 24px, motion respects reduced-motion, every icon-only button has an `aria-label` (tested).
 - Panels (editor height, sidebar, detail) are resizable by pointer and keyboard (arrows, Home/End, double-click resets), clamp to leave room, and re-check each other's limits whenever any moves.
+- **Environments are user-editable** (Settings): add, rename, recolour, delete, restore defaults. A connection stores the environment's *id*; `envOf(id)` is undefined for none or a deleted one, so a dangling id just shows nothing. Deleting asks first and clears the environment from the connections using it (kept otherwise). The three built-ins keep their theme-aware tokens (`--env-local/staging/production`) until a colour is picked; a picked colour is one hex that `readable()` nudges toward white (dark theme) or black (light) until it has 4.5:1 on `--panel`, recomputed on every theme switch. `applyEnvStyles()` writes one `[data-env="id"] { --env: ... }` rule per environment into `<style id="envStyles">`: ids (`/^[a-z0-9-]{1,40}$/i`) and colours (`#rrggbb`) are validated by `cleanEnvs` on load, because the store text lands in CSS. A colour near amber (hue within 22 degrees of 36) gets a warning, not a block. Names are unique case-insensitively; an empty or taken name reverts. An empty saved list is respected (no environments); nothing saved means the defaults.
 - **Shortcuts**: ⌘↵ run (selection or all), ⌘. stop, ⌘T new tab, ⌘S save, ⌘⇧S save a copy, ⌘O open files, ⌘E export SQL, ⌘⇧E export CSV, ⌘, settings, ⌘F find in the open cell detail, Ctrl+Tab / Ctrl+⇧+Tab cycle, Alt+←/→ move a tab. With Vim on, only ⌘ (not Ctrl) triggers ⌘O/⌘E/⌘⇧E, because Ctrl+O and Ctrl+E are Vim keys. `:w` in Vim runs the query.
 
 ### Window
@@ -164,7 +166,7 @@ Release checklist (what v0.1.0 followed): bump `version` in `tinyjs.json`; run t
 - Notarization; real Apple Silicon testing; Windows and Linux are untried.
 - MySQL tested on 8.0 only (MariaDB, 5.7 untested); only the two logins above.
 - SQLite: cannot be stopped; a zero-row result has no header.
-- Ideas not built: custom environments: add new ones or change the built-in three (local, staging, production), including each one's colour with a colour picker (the colour feeds the window edge, the tag and the tab border, so a picked colour needs a contrast check in both themes and must stay distinct from the amber action colour; the three are fixed in `style.css` variables today), an eye icon on the connection dialog's password field to show or hide the password (needs an `aria-label`, and the field must go back to hidden when the dialog closes), exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
+- Ideas not built: exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
 
 ## Lessons (things that went wrong once)
 

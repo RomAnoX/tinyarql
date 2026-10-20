@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const NAMES = [
-  'database', 'table-2', 'eye', 'pencil', 'trash-2', 'plus', 'settings', 'play', 'chevron-left', 'chevron-right',
+  'database', 'table-2', 'eye', 'eye-off', 'pencil', 'trash-2', 'plus', 'settings', 'play', 'chevron-left', 'chevron-right',
   'copy', 'check', 'x', 'braces', 'circle-alert', 'folder-open', 'sun', 'moon', 'monitor', 'file-text', 'list-tree',
   'hard-drive', 'unplug', 'plug-zap', 'loader-circle', 'square', 'save', 'file-code', 'download', 'search',
 ];

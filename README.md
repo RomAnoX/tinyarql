@@ -26,7 +26,7 @@ Most database clients are heavy. TinyArQL is built on [tinyjs](https://tinyjs.ap
 It started as a rebuild of Arctype, a lovely SQL client that is no longer maintained, and shares no code with it. The database drivers are written in plain JavaScript against each database's wire protocol, so there is nothing else to install.
 
 - **Small and quick.** An 8 MB download that opens in a moment.
-- **Safe by design.** Passwords live in your system keychain, never in a file. Connections can be tagged `local`, `staging` or `production`, and while you are connected the window gets a coloured edge, so you can tell at a glance which database you are talking to.
+- **Safe by design.** Passwords live in your system keychain, never in a file. Connections can be tagged with an environment (`local`, `staging` and `production` to start with; add your own or change their colours in Settings), and while you are connected the window gets a coloured edge, so you can tell at a glance which database you are talking to.
 - **Calm to look at.** A cool slate palette with one amber accent, in light and dark, following your system by default.
 
 ## Features

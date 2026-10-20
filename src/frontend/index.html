@@ -89,14 +89,14 @@
       <select name="type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="sqlite">SQLite</option></select>
     </label>
     <label>Environment
-      <select name="env"><option value="">None</option><option value="local">Local</option><option value="staging">Staging</option><option value="production">Production</option></select>
+      <select name="env"><option value="">None</option></select>
     </label>
-    <p class="hint">Staging and production colour the top edge of the window while you're connected.</p>
+    <p class="hint">The environment's colour marks the top edge of the window, the tag and the tab while you're connected. Add or change environments in Settings.</p>
     <div data-for="postgres mysql">
       <label>Host <input name="host" value="127.0.0.1"></label>
       <label>Port <input name="port" value="5432"></label>
       <label>User <input name="user"></label>
-      <label>Password <input name="password" type="password"></label>
+      <label>Password <span class="row"><input name="password" type="password" autocomplete="off"><button type="button" id="pwToggle" class="icon" aria-label="Show password" aria-pressed="false" title="Show password"><i data-icon="eye" data-size="14"></i></button></span></label>
       <label>Database <input name="database"></label>
       <label class="check"><input type="checkbox" name="sshOn"> Connect through an SSH tunnel</label>
       <div id="ssh" hidden>
@@ -137,6 +137,13 @@
       <button type="button" role="radio" data-theme="dark"><i data-icon="moon" data-size="14"></i>Dark</button>
     </div>
     <p class="hint" style="margin-top:6px">System follows your computer's appearance setting.</p>
+  </div>
+  <div class="field">
+    <span id="envLabel">Environments</span>
+    <div id="envList" role="group" aria-labelledby="envLabel"></div>
+    <div class="row"><button type="button" id="envAdd"><i data-icon="plus" data-size="14"></i>Add environment</button><button type="button" id="envReset">Restore defaults</button></div>
+    <p class="hint warn" id="envNote" role="status" style="margin-top:6px"></p>
+    <p class="hint">A connection's environment colours the window edge, its tag and its tabs, so you can tell production from staging at a glance.</p>
   </div>
   <label class="check"><input type="checkbox" id="optVim"> Vim keybindings in the editor</label>
   <p class="hint">Adds Vim modes to the SQL editor. <code>:w</code> runs the query; ⌘/Ctrl+Enter still works.</p>

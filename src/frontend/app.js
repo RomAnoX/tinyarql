@@ -26,10 +26,10 @@ const DIALECTS = { postgres: 'PostgreSQL', mysql: 'MySQL', sqlite: 'SQLite' };
 function renderWhere() {
   const c = conns.find((x) => x.id === active);
   $('where').innerHTML = c
-    ? `<b>${esc(c.name)}</b> <span>${esc(DIALECTS[c.type] || c.type)}</span>${c.env ? ` <span class="env" data-env="${esc(c.env)}">${esc(c.env)}</span>` : ''}`
+    ? `<b>${esc(c.name)}</b> <span>${esc(DIALECTS[c.type] || c.type)}</span>${envTag(c)}`
     : '<span>No connection</span>';
-  $('envBar').hidden = !c?.env;
-  $('envBar').dataset.env = c?.env || '';
+  $('envBar').hidden = !envOf(c?.env);
+  $('envBar').dataset.env = envOf(c?.env)?.id || '';
 }
 
 // ---- CodeMirror 6 (bundled by tools/editor into editor.js) ----
@@ -124,6 +124,118 @@ async function loadLayout() {
 }
 Promise.resolve(tiny.win.setMinSize(760, 480)).catch(() => {});  // matches windowstate.js: the layout needs this much room
 
+// ---- environments: a named colour a connection can carry (window edge, tag, tab border) ----
+// A connection stores the environment's id. The three built-ins keep their theme-aware colour tokens (--env-<id>) until you
+// pick a colour; a picked colour is one hex, nudged toward white (dark theme) or black (light) until it reads on the panel.
+const BUILT_IN_ENVS = ['local', 'staging', 'production'];
+const defaultEnvs = () => BUILT_IN_ENVS.map((id) => ({ id, name: id }));
+let envs = defaultEnvs();                                   // [{ id, name, color? }], saved in tiny.store 'environments'
+const envOf = (id) => envs.find((e) => e.id === id);        // undefined for none, or for one that was deleted
+const envTag = (c) => { const e = envOf(c.env); return e ? `<span class="env" data-env="${esc(e.id)}">${esc(e.name)}</span>` : ''; };
+const HEX = /^#[0-9a-f]{6}$/i;
+const rgbOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const hexOf = (c) => '#' + c.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+const lumOf = (c) => { const [r, g, b] = c.map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrastOf = (a, b) => { const [hi, lo] = [lumOf(a), lumOf(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+function readable(hex) {
+  const panel = rgbOf(cssVar('--panel')), toward = document.documentElement.dataset.theme === 'light' ? 0 : 255, c = rgbOf(hex);
+  for (let t = 0; t <= 1.001; t += 0.05) {
+    const m = c.map((x) => x + (toward - x) * t);
+    if (contrastOf(m, panel) >= 4.5) return hexOf(m);
+  }
+  return hexOf([toward, toward, toward]);
+}
+// The colour an environment shows right now (the picker starts from it).
+const envShown = (e) => (e.color ? readable(e.color) : cssVar('--env-' + e.id) || '#8497a6');
+// One rule per environment, written into a <style>: ids and hex values are validated on load and on edit, so nothing else can get in.
+function applyEnvStyles() {
+  let st = $('envStyles');
+  if (!st) { st = document.createElement('style'); st.id = 'envStyles'; document.head.appendChild(st); }
+  st.textContent = envs.map((e) => `[data-env="${e.id}"] { --env: ${e.color ? readable(e.color) : BUILT_IN_ENVS.includes(e.id) ? `var(--env-${e.id})` : '#8497a6'}; }`).join('\n');
+}
+const saveEnvs = () => tiny.store.set('environments', envs);
+const cleanEnvs = (list) => list.filter((e) => e && typeof e.id === 'string' && /^[a-z0-9-]{1,40}$/i.test(e.id) && typeof e.name === 'string' && e.name.trim())
+  .map((e) => ({ id: e.id, name: e.name.trim().slice(0, 40), ...(typeof e.color === 'string' && HEX.test(e.color) ? { color: e.color.toLowerCase() } : {}) }));
+const capitalize = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+function fillEnvSelect() {
+  const sel = document.querySelector('#form select[name=env]');
+  sel.innerHTML = '<option value="">None</option>' + envs.map((e) => `<option value="${esc(e.id)}">${esc(capitalize(e.name))}</option>`).join('');
+}
+// Amber means "action"; an environment colour close to it would blur the two.
+const nearAmber = (hex) => {
+  const [r, g, b] = rgbOf(hex).map((x) => x / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d < 0.25 || mx < 0.3) return false;  // grey or very dark
+  const h = ((mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60 + 360) % 360;
+  return Math.abs(h - 36) < 22;
+};
+const AMBER_HINT = 'is close to the amber used for actions; pick a colour that is easier to tell apart.';
+function renderEnvList() {
+  $('envList').innerHTML = envs.map((e) => `<div class="envrow" data-id="${esc(e.id)}">
+      <input class="envname" value="${esc(e.name)}" maxlength="40" aria-label="Name of environment ${esc(e.name)}" autocomplete="off" spellcheck="false">
+      <input class="envcolor" type="color" value="${envShown(e)}" aria-label="Colour of ${esc(e.name)}">
+      <button type="button" class="icon" data-act="del" title="Delete environment" aria-label="Delete environment ${esc(e.name)}">${icon('trash-2', 14)}</button>
+    </div>`).join('') || '<p class="hint">No environments. Connections then carry no colour.</p>';
+  const near = envs.filter((e) => nearAmber(envShown(e))).map((e) => e.name);
+  $('envNote').textContent = near.length ? `${near.join(', ')} ${AMBER_HINT}` : '';
+}
+const refreshEnvViews = () => { applyEnvStyles(); fillEnvSelect(); renderWhere(); renderConns(); renderTabs(); };
+async function loadEnvs() {
+  const saved = await tiny.store.get('environments');
+  envs = Array.isArray(saved) ? cleanEnvs(saved) : defaultEnvs();
+  refreshEnvViews(); renderEnvList();
+}
+$('envList').addEventListener('input', (e) => {  // a colour drag repaints live; nothing else needs to re-render
+  const row = e.target.closest('.envrow'), env = row && envOf(row.dataset.id);
+  if (!env || !e.target.matches('.envcolor')) return;
+  env.color = e.target.value.toLowerCase();
+  applyEnvStyles(); saveEnvs();
+  const near = envs.filter((x) => nearAmber(envShown(x))).map((x) => x.name);
+  $('envNote').textContent = near.length ? `${near.join(', ')} ${AMBER_HINT}` : '';
+});
+$('envList').addEventListener('change', (e) => {
+  const row = e.target.closest('.envrow'), env = row && envOf(row.dataset.id);
+  if (!env || !e.target.matches('.envname')) return;
+  const name = e.target.value.trim();
+  if (!name || envs.some((x) => x !== env && x.name.toLowerCase() === name.toLowerCase())) { e.target.value = env.name; return; }  // empty or taken: keep the old name
+  env.name = name;
+  saveEnvs(); refreshEnvViews(); renderEnvList();
+});
+$('envList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act=del]'), env = b && envOf(b.closest('.envrow').dataset.id);
+  if (!env) return;
+  const using = conns.filter((c) => c.env === env.id);
+  const sure = await tiny.dialog.confirm(`Delete the “${env.name}” environment?`, {
+    detail: using.length ? `${using.length} connection${using.length === 1 ? '' : 's'} (${using.map((c) => c.name).join(', ')}) will have no environment. The connections themselves are kept.` : 'No connection uses it.',
+    ok: 'Delete', cancel: 'Cancel',
+  });
+  if (!sure) return;
+  for (const c of using) await call('saveConnection', { conn: { ...c, env: '' }, password: null });
+  envs = envs.filter((x) => x !== env);
+  await saveEnvs(); await load(); refreshEnvViews(); renderEnvList();
+});
+$('envAdd').onclick = () => {
+  const taken = new Set(envs.map((e) => e.name.toLowerCase()));
+  let n = 1, name = 'new environment';
+  while (taken.has(name)) name = `new environment ${++n}`;
+  const used = new Set(envs.map((e) => envShown(e).toLowerCase()));
+  const color = ['#38bdf8', '#f472b6', '#2dd4bf', '#a3e635', '#818cf8', '#e879f9'].find((c) => !used.has(c)) || '#38bdf8';
+  envs.push({ id: 'e' + crypto.randomUUID().slice(0, 8), name, color });
+  saveEnvs(); refreshEnvViews(); renderEnvList();
+  const rows = $('envList').querySelectorAll('.envname'); rows[rows.length - 1].focus(); rows[rows.length - 1].select();
+};
+$('envReset').onclick = async () => {
+  const lost = conns.filter((c) => c.env && !BUILT_IN_ENVS.includes(c.env) && envOf(c.env));
+  const sure = await tiny.dialog.confirm('Restore the default environments?', {
+    detail: `This brings back local, staging and production with their original names and colours and removes the others.${lost.length ? ` ${lost.length} connection${lost.length === 1 ? '' : 's'} using a removed environment will have none.` : ''}`,
+    ok: 'Restore', cancel: 'Cancel',
+  });
+  if (!sure) return;
+  for (const c of lost) await call('saveConnection', { conn: { ...c, env: '' }, password: null });
+  envs = defaultEnvs();
+  await saveEnvs(); await load(); refreshEnvViews(); renderEnvList();
+};
+
 // ---- settings (persisted in tiny.store) ----
 const settings = { vim: false, theme: 'system' };
 const media = matchMedia('(prefers-color-scheme: dark)');
@@ -132,6 +244,7 @@ function applyTheme() {
   const t = settings.theme === 'system' ? (media.matches ? 'dark' : 'light') : settings.theme;
   document.documentElement.dataset.theme = t;
   editor.setTheme(t);
+  applyEnvStyles();
   $('themeSeg').querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.theme === settings.theme)));
 }
 media.addEventListener('change', () => { if (settings.theme === 'system') applyTheme(); });
@@ -157,7 +270,7 @@ $('optVim').onchange = () => {
   applySettings();
   tiny.store.set('settings', settings);
 };
-const openSettings = () => $('settings').showModal();
+const openSettings = () => { renderEnvList(); $('settings').showModal(); };
 $('settingsBtn').onclick = openSettings;
 $('settingsClose').onclick = () => { $('settings').close(); editor.focus(); };
 document.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openSettings(); } });
@@ -182,7 +295,7 @@ function renderConns() {
     <li class="conn ${on ? 'on' : ''} ${open ? 'open' : ''} ${busy ? 'connecting' : ''}" data-id="${esc(c.id)}">
       <div class="row">
         <button class="head"${on ? ` aria-expanded="${open}"` : ''}${busy ? ' aria-busy="true"' : ''}><span class="chev">${icon('chevron-right', 14)}</span><span class="state">${icon(busy ? 'loader-circle' : on ? 'plug-zap' : 'unplug', 15)}</span><span class="name">${esc(c.name)}</span></button>
-        ${c.env ? `<span class="env" data-env="${esc(c.env)}">${esc(c.env)}</span>` : ''}
+        ${envTag(c)}
         ${busy ? '<span class="progress" role="status">Connecting…</span>' : ''}
         ${on ? `<span class="count" title="${tables[c.id].length} tables and views">${tables[c.id].length}</span>` : ''}
         <span class="tools"><button data-act="edit" title="Edit connection" aria-label="Edit ${esc(c.name)}">${icon('pencil', 14)}</button><button data-act="del" title="Delete connection" aria-label="Delete ${esc(c.name)}">${icon('trash-2', 14)}</button></span>
@@ -580,6 +693,8 @@ function openForm(c, type) {
   form.dataset.id = c?.id || '';
   $('dlgTitle').textContent = c ? 'Edit connection' : 'New connection';
   formNote();
+  showPassword(false);
+  fillEnvSelect();
   for (const [k, v] of Object.entries(c || {})) if (form.elements[k] && !['password', 'tls', 'tlsInsecure'].includes(k)) form.elements[k].value = v;
   form.sshOn.checked = !!c?.sshHost;
   form.tlsOn.checked = !!c?.tls;
@@ -600,6 +715,17 @@ form.tlsOn.addEventListener('change', showType);
 form.tlsInsecure.addEventListener('change', showType);
 $('addConn').onclick = () => openForm();
 $('cancel').onclick = () => $('dlg').close();
+// The eye shows the password while you check what you typed. It always starts hidden and goes back when the dialog closes.
+function showPassword(on) {
+  form.password.type = on ? 'text' : 'password';
+  const b = $('pwToggle');
+  b.innerHTML = icon(on ? 'eye-off' : 'eye', 14);
+  b.setAttribute('aria-pressed', String(on));
+  b.setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+  b.title = on ? 'Hide password' : 'Show password';
+}
+$('pwToggle').onclick = () => { showPassword(form.password.type === 'password'); form.password.focus(); };
+$('dlg').addEventListener('close', () => showPassword(false));
 $('pick').onclick = async () => { const p = await tiny.dialog.openFile(); if (p) form.path.value = p; };
 $('pickKey').onclick = async () => { const p = await tiny.dialog.openFile(); if (p) form.sshKey.value = p; };
 $('pickCa').onclick = async () => { const p = await tiny.dialog.openFile(); if (p) form.tlsCa.value = p; };
@@ -651,7 +777,7 @@ function renderTabs() {
   const focused = f && $('tablist').contains(f) ? { id: f.closest('.tab')?.dataset.id, close: f.matches('.x') } : null;
   $('tablist').innerHTML = tabs.map((t) => {
     const conn = conns.find((c) => c.id === t.connId), busy = running && running.tab === t.id, on = t.id === currentId;
-    return `<div class="tab ${on ? 'on' : ''}${tabs.length === 1 ? ' solo' : ''}" role="tab" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-id="${esc(t.id)}"${conn?.env ? ` data-env="${esc(conn.env)}"` : ''} title="${esc(t.title)}${conn ? ` on ${esc(conn.name)}` : ''}">
+    return `<div class="tab ${on ? 'on' : ''}${tabs.length === 1 ? ' solo' : ''}" role="tab" aria-selected="${on}" tabindex="${on ? 0 : -1}" data-id="${esc(t.id)}"${envOf(conn?.env) ? ` data-env="${esc(envOf(conn.env).id)}"` : ''} title="${esc(t.title)}${conn ? ` on ${esc(conn.name)}` : ''}">
       ${busy ? icon('loader-circle', 13) : ''}<span class="t">${esc(t.title)}</span>${isUnsaved(t) ? '<i class="dirty" role="img" aria-label="Unsaved changes" title="Unsaved changes"></i>' : ''}${tabs.length > 1 ? `<button class="x" aria-label="Close ${esc(t.title)}" title="Close tab">${icon('x', 12)}</button>` : ''}
     </div>`;  // the last tab has no close button: there is always one
   }).join('');
@@ -1150,3 +1276,4 @@ async function load() {
 load().then(loadTabs);
 loadSettings();
 loadLayout();
+loadEnvs();
