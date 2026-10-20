@@ -166,7 +166,7 @@ Release checklist (what v0.1.0 followed): bump `version` in `tinyjs.json`; run t
 - Notarization; real Apple Silicon testing; Windows and Linux are untried.
 - MySQL tested on 8.0 only (MariaDB, 5.7 untested); only the two logins above.
 - SQLite: cannot be stopped; a zero-row result has no header.
-- Ideas not built: exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
+- Ideas not built: a setting to zoom the font size of the entire app (UI, editor, grid and detail panel together, with ⌘+ / ⌘- / ⌘0 and a saved value in `settings`; sizes are px literals in `style.css` and the CodeMirror theme today, so it needs a root size variable or CSS `zoom` first, and the splitters, the 24px minimum targets and the editor's measured line height must keep working at every step), exporting the whole saved-query library to a folder of `.sql` files, opening `.sql` files from Finder (`fileExtensions` in `tinyjs.json` plus `onOpenFiles`), a Cancel button on a connecting row (an SSH tunnel can hold a row busy for ~15 s), and query history.
 
 ## Lessons (things that went wrong once)
 
