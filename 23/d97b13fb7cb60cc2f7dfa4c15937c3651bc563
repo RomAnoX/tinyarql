@@ -1,0 +1,44 @@
+src/frontend/app.js
+  s_a35d9bf50c838e::t_ffd9705c65448f 664
+  s_a35d9bf50c838e::t_f696ba9a59aa32 240-242,257-259,278-284
+  s_a35d9bf50c838e::t_975d76d20c030d 297-298,300,326-381,387-390
+  s_a35d9bf50c838e::t_a1bffcac919cfa 312
+src/frontend/index.html
+  s_a35d9bf50c838e::t_f696ba9a59aa32 148-151
+test/ui-driver.js
+  s_a35d9bf50c838e::t_635fc5cc44a117 1490-1529,1531-1533,1535-1541
+  s_a35d9bf50c838e::t_59275b3c574803 719,724,765-770
+  s_a35d9bf50c838e::t_ba9b9d7fab5b78 236-249,251-255
+  s_a35d9bf50c838e::t_a1bffcac919cfa 618,647
+  s_a35d9bf50c838e::t_bd8bf8531ee1b5 619-622
+  s_a35d9bf50c838e::t_215eb893eef125 250
+  s_a35d9bf50c838e::t_b7f59251a02b6a 1530,1534
+CLAUDE.md
+  s_a35d9bf50c838e::t_e047fa41e2c6f2 72
+  s_a35d9bf50c838e::t_5fd34a9421a544 55,98,116
+src/frontend/style.css
+  s_a35d9bf50c838e::t_975d76d20c030d 84-86
+  s_a35d9bf50c838e::t_f696ba9a59aa32 157-158
+  s_a35d9bf50c838e::t_a1bffcac919cfa 87-88
+src/main.js
+  s_a35d9bf50c838e::t_975d76d20c030d 74-76,81-86
+  s_a35d9bf50c838e::t_fda96d6883db7e 87-88
+test/main.js
+  s_a35d9bf50c838e::t_15961272cce3d8 37-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23d97b13fb7cb60cc2f7dfa4c15937c3651bc563",
+  "prompts": {},
+  "sessions": {
+    "s_a35d9bf50c838e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e2cf25-0bd9-4809-be26-97fd0ed2b258",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
