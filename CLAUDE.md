@@ -52,7 +52,7 @@ The backend is **not Node**. This shapes the whole design.
 
 **Backend (`src/main.js`)** exports `api` (called from the page as `tiny.api.call(name, params)`) and `init(app)`, which restores the window and starts the position poll.
 
-`listConnections saveConnection deleteConnection testConnection connect disconnect tables query cancelQuery browse readTextFile writeTextFile exportRowsCsv exportQueryCsv`
+`listConnections saveConnection reorderConnections deleteConnection testConnection connect disconnect tables query cancelQuery browse readTextFile writeTextFile exportRowsCsv exportQueryCsv`
 
 Sessions are kept in a `Map` by connection id. `open()` creates a driver session, going through an SSH tunnel first when `sshHost` is set (Postgres and MySQL only).
 
@@ -69,7 +69,7 @@ Sessions are kept in a `Map` by connection id. `open()` creates a driver session
 
 Main state in `app.js`: `conns`, `active` (the current tab's connection), `tables` (present = connected), `tabs`/`currentId`, `queries`, `running`, `result`/`detail`/`view` (what the grid shows). Rendering is string-based and rebuilds lists wholesale, so focus is captured and restored in `renderConns`, `renderTabs` and `renderSaved`.
 
-**Persistence (`tiny.store`) keys:** `connections` (no secrets), `settings` `{vim, theme}`, `layout` `{editorHeight, sidebarWidth, detailWidth}`, `tabs` `{current, list:[{id,title,sql,connId,savedId,origin}]}`, `queries` `[{id,name,sql,connId,updatedAt}]`, `environments` `[{id,name,color?}]` (absent = the three defaults), `window` `{x,y,width,height}` (written by the backend). Passwords go in the keychain via `app.secrets` under `conn:<id>`; never in the store. Results are never persisted.
+**Persistence (`tiny.store`) keys:** `connections` (no secrets), `settings` `{vim, theme, editorSize}` (editorSize 10 to 24 px, default 13, sets `--editor-size` on `#sql`; `cleanSize` clamps it because the store text lands in CSS), `layout` `{editorHeight, sidebarWidth, detailWidth}`, `tabs` `{current, list:[{id,title,sql,connId,savedId,origin}]}`, `queries` `[{id,name,sql,connId,updatedAt}]`, `environments` `[{id,name,color?}]` (absent = the three defaults), `window` `{x,y,width,height}` (written by the backend). Passwords go in the keychain via `app.secrets` under `conn:<id>`; never in the store. Results are never persisted.
 
 ## Decisions (and why)
 
@@ -95,6 +95,7 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 - Default names are **"Query N" with the lowest free N** (closing frees the number; no counter is stored). **The last tab cannot be closed** (no × button; every other route is a no-op).
 - Tabs persist and restore. A restored tab starts offline: **Run connects first**, then runs.
 - **Reordering** uses pointer events, not HTML5 drag and drop (testable, no clash with the window's file-drop handler). Live reorder, auto-scroll at the edges, Esc cancels, the picked-up tab becomes selected, the drop slot is decided from the pointer (not the clamped position), redraws are held while dragging. Keyboard: Alt+←/→.
+- **Connections reorder** the same way (pointer events, vertical; Alt+↑/↓ on a focused row), order stored as the `connections` list order via `reorderConnections`. Editing a connection keeps its place. `renderConns` waits while a drag is live.
 - **Saved queries** are a named library in the store. Names are unique (case-insensitive; replacing asks first). A search box matches every word against name or SQL. Open/export `.sql`: opened files are normalized to `\n`; a tab that came from or went to a file stores `origin {path, hash}` and counts as "unsaved" only while its text differs (a hash, not a copy). Files are text only, up to 5 MB.
 - The connection form's password field has an eye button (`aria-pressed`, label flips between Show and Hide password, icon between `eye` and `eye-off`). The password always starts hidden and is hidden again when the dialog closes, so it is never left showing for the next connection.
 - Closing a tab with unsaved text asks first. Deleting a connection or saved query asks first, names the item, and says what happens.
@@ -112,7 +113,7 @@ Main state in `app.js`: `conns`, `active` (the current tab's connection), `table
 - Avoid generic tells: no all-caps labels, no middle-dot separators, no "label above everything". Visible focus rings, targets at least 24px, motion respects reduced-motion, every icon-only button has an `aria-label` (tested).
 - Panels (editor height, sidebar, detail) are resizable by pointer and keyboard (arrows, Home/End, double-click resets), clamp to leave room, and re-check each other's limits whenever any moves.
 - **Environments are user-editable** (Settings): add, rename, recolour, delete, restore defaults. A connection stores the environment's *id*; `envOf(id)` is undefined for none or a deleted one, so a dangling id just shows nothing. Deleting asks first and clears the environment from the connections using it (kept otherwise). The three built-ins keep their theme-aware tokens (`--env-local/staging/production`) until a colour is picked; a picked colour is one hex that `readable()` nudges toward white (dark theme) or black (light) until it has 4.5:1 on `--panel`, recomputed on every theme switch. `applyEnvStyles()` writes one `[data-env="id"] { --env: ... }` rule per environment into `<style id="envStyles">`: ids (`/^[a-z0-9-]{1,40}$/i`) and colours (`#rrggbb`) are validated by `cleanEnvs` on load, because the store text lands in CSS. A colour near amber (hue within 22 degrees of 36) gets a warning, not a block. Names are unique case-insensitively; an empty or taken name reverts. An empty saved list is respected (no environments); nothing saved means the defaults.
-- **Shortcuts**: ⌘↵ run (selection or all), ⌘. stop, ⌘T new tab, ⌘S save, ⌘⇧S save a copy, ⌘O open files, ⌘E export SQL, ⌘⇧E export CSV, ⌘, settings, ⌘F find in the open cell detail, Ctrl+Tab / Ctrl+⇧+Tab cycle, Alt+←/→ move a tab. With Vim on, only ⌘ (not Ctrl) triggers ⌘O/⌘E/⌘⇧E, because Ctrl+O and Ctrl+E are Vim keys. `:w` in Vim runs the query.
+- **Shortcuts**: ⌘↵ run (selection or all), ⌘. stop, ⌘T new tab, ⌘S save, ⌘⇧S save a copy, ⌘O open files, ⌘E export SQL, ⌘⇧E export CSV, ⌘, settings, ⌘F find in the open cell detail, Ctrl+Tab / Ctrl+⇧+Tab cycle, Alt+←/→ move a tab, Alt+↑/↓ move a connection. With Vim on, only ⌘ (not Ctrl) triggers ⌘O/⌘E/⌘⇧E, because Ctrl+O and Ctrl+E are Vim keys. `:w` in Vim runs the query.
 
 ### Window
 - tinyjs does **not** restore the window itself. `windowstate.js` polls the geometry once a second (no move/resize event exists), skips fullscreen and minimized, and restores at start. A saved position is used only if at least 200×120 px would be on a connected screen; sizes below 760×480 are raised.

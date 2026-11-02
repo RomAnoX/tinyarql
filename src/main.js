@@ -71,10 +71,19 @@ export const api = {
   // Passwords live in the OS keychain, never in the store.
   async saveConnection({ conn, password }) {
     const c = { ...conn, id: conn.id || crypto.randomUUID() };
-    const list = (await saved()).filter((x) => x.id !== c.id);
-    await app.store.set('connections', [...list, c]);
+    const list = await saved();
+    const i = list.findIndex((x) => x.id === c.id);  // an edit keeps its place in the sidebar order
+    await app.store.set('connections', i < 0 ? [...list, c] : list.map((x, j) => (j === i ? c : x)));
     if (password) await app.secrets.set('conn:' + c.id, password);
     return c;
+  },
+
+  // `ids` is the new order. Anything it leaves out (a connection saved meanwhile) keeps its place after the listed ones.
+  async reorderConnections({ ids }) {
+    const rank = (c) => { const i = ids.indexOf(c.id); return i < 0 ? ids.length : i; };
+    const list = (await saved()).map((c, i) => [c, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([c]) => c);
+    await app.store.set('connections', list);
+    return list;
   },
 
   async deleteConnection({ id }) {

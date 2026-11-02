@@ -81,8 +81,11 @@ ul { list-style: none; margin: 0; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .conn .chev svg { transition: none; } }
 .conn .state { color: var(--dim); display: flex; }  /* unplugged = offline, plug-zap = connected: shape, not just colour */
 .conn.on .state { color: var(--ok); }
-.conn .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conn .count { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.conn.dragging { position: relative; z-index: 4; background: var(--panel); box-shadow: 0 4px 14px var(--scrim); }
+body.dragging-conn { cursor: grabbing; user-select: none; }
+body.dragging-conn .conn .head { cursor: grabbing; }
+.conn .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn .count { flex: none; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }  /* sits right after the name, inside the head button */
 .conn .tools { display: flex; opacity: 0; }
 .conn > .row:hover .tools, .conn > .row:focus-within .tools { opacity: 1; }
 .tools button { min-width: 24px; min-height: 24px; padding: 0; justify-content: center; border: 0; background: none; color: var(--dim); border-radius: 4px; }
@@ -151,7 +154,8 @@ body.dragging-tab { cursor: grabbing; user-select: none; }
 /* main: editor, results, status bar */
 main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .editor { flex: none; }
-#sql { height: 168px; overflow: hidden; }  /* the splitter sets the real height */
+#sql { height: 168px; overflow: hidden; }
+#sql .cm-editor { font-size: var(--editor-size, 13px); }  /* beats the theme's own 13px (an id outranks its class); set from Settings */  /* the splitter sets the real height */
 /* editor/results splitter: a 9px hit area straddling a 1px rule */
 #splitter { flex: none; height: 9px; margin: -4px 0; position: relative; z-index: 5; cursor: row-resize; touch-action: none; }
 #splitter::after { content: ''; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: var(--rule); }

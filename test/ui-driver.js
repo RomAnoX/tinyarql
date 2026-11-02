@@ -233,6 +233,26 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     check('vim normal mode: x deletes a char', editor.getValue() === 'bc', editor.getValue());
     settings.vim = false; await loadSettings();
     check('loadSettings restores persisted vim', settings.vim === true && vimOn());
+    // ---- editor font size ----
+    const fsInput = document.getElementById('optSize'), cmEl = document.querySelector('#sql .cm-editor'), lineH = () => document.querySelector('#sql .cm-line').getBoundingClientRect().height;
+    const typeSize = async (v) => { fsInput.value = v; fsInput.dispatchEvent(new Event('input', { bubbles: true })); await sleep(150); };
+    check('font size: 13px by default, and the box shows it', getComputedStyle(cmEl).fontSize === '13px' && fsInput.value === '13' && settings.editorSize === 13, getComputedStyle(cmEl).fontSize);
+    const h13 = lineH();
+    await typeSize('20');
+    check('font size: typing 20 grows the editor text', getComputedStyle(cmEl).fontSize === '20px' && lineH() > h13 + 5, `${getComputedStyle(cmEl).fontSize} ${h13} -> ${lineH()}`);
+    check('font size: saved to the store', (await tiny.store.get('settings')).editorSize === 20);
+    await typeSize('1'); await typeSize('');
+    check('font size: a half-typed or empty box changes nothing', getComputedStyle(cmEl).fontSize === '20px' && settings.editorSize === 20);
+    fsInput.value = '99'; fsInput.dispatchEvent(new Event('change', { bubbles: true })); await sleep(100);
+    check('font size: too big is clamped to 24 (and the box says so)', getComputedStyle(cmEl).fontSize === '24px' && fsInput.value === '24');
+    fsInput.value = '3'; fsInput.dispatchEvent(new Event('change', { bubbles: true })); await sleep(100);
+    check('font size: too small is clamped to 10', getComputedStyle(cmEl).fontSize === '10px' && fsInput.value === '10');
+    await tiny.store.set('settings', { ...settings, editorSize: 'red; background: url(x)' }); await loadSettings();
+    check('font size: junk from the store falls back to 13 (it lands in CSS)', getComputedStyle(cmEl).fontSize === '13px' && settings.editorSize === 13);
+    settings.editorSize = 18; await tiny.store.set('settings', settings); settings.editorSize = 13; await loadSettings();
+    check('font size: a saved size is restored on load', getComputedStyle(cmEl).fontSize === '18px' && fsInput.value === '18');
+    await typeSize('13');
+    check('font size: the grid and other text are untouched', getComputedStyle(document.getElementById('grid')).fontSize !== '20px');
     document.getElementById('settingsClose').click();
     check('settings dialog closes', !document.getElementById('settings').open);
     // ---- environments (Settings) ----
@@ -595,7 +615,11 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     const arrow = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
     const tcount = () => conn1().querySelectorAll('.tbls li').length;
     check('connected connection is expanded and says so to assistive tech', head1().getAttribute('aria-expanded') === 'true' && conn1().classList.contains('open') && tcount() >= 2, String(tcount()));
-    check('table count badge matches the list', conn1().querySelector('.count').textContent === String(tcount()), conn1().querySelector('.count').textContent);
+    check('table count badge matches the list', conn1().querySelector('.count').textContent === `(${tcount()})`, conn1().querySelector('.count').textContent);
+    check('the count sits right after the name, inside the head button', conn1().querySelector('.name').nextElementSibling === conn1().querySelector('.count') && head1().contains(conn1().querySelector('.count')));
+    check('the name text stays bare (no count in it)', !conn1().querySelector('.name').textContent.includes('('));
+    const cnt = conn1().querySelector('.count').getBoundingClientRect(), nm = conn1().querySelector('.name').getBoundingClientRect();
+    check('the count is drawn next to the name, not pushed to the row end', cnt.left - nm.right < 12 && cnt.left >= nm.right - 1, `${nm.right} ${cnt.left}`);
     check('chevron points down while open', getComputedStyle(conn1().querySelector('.chev svg')).transform !== 'none');
     check('the open table is highlighted', !!conn1().querySelector('.tbls li.sel'));
     head1().click();
@@ -620,7 +644,7 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     const second = () => [...document.querySelectorAll('.conn')].find((c) => c.querySelector('.name').textContent === 'second');
     check('offline connection: no expanded state and the chevron is hidden', !second().querySelector('.head').hasAttribute('aria-expanded') && getComputedStyle(second().querySelector('.chev')).visibility === 'hidden');
     second().querySelector('.head').click(); await until(() => second().classList.contains('on'), 'second connected');
-    check('clicking an offline connection connects it and opens its (empty) table list', second().classList.contains('open') && second().querySelector('.count').textContent === '0' && !!second().querySelector('.tbls'));
+    check('clicking an offline connection connects it and opens its (empty) table list', second().classList.contains('open') && second().querySelector('.count').textContent === '(0)' && !!second().querySelector('.tbls'));
     check('it becomes the active connection; the first is untouched', document.getElementById('where').textContent.includes('second') && conn1().classList.contains('open'));
     // ---- connecting indicator ----
     // The test sqlite connect is instant, so delay connect/testConnection to catch the in-flight state.
@@ -692,11 +716,12 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     // ---- stopping a running query ----
     // The backend is stubbed so a query can be held open; real cancellation is covered by test/drivers.js, main.js, tunnel.js.
     const stubCalls = []; let finish, lastCancel;
+    let tablesDelay = 0;
     tiny.api.call = async (m, p) => {
       stubCalls.push(m);
       if (m === 'query') return new Promise((resolve, reject) => { finish = { resolve, reject }; });
       if (m === 'cancelQuery') { lastCancel = p; await sleep(300); finish.resolve({ cancelled: true, ms: 1234 }); return { cancelled: true }; }
-      if (m === 'tables') return [];
+      if (m === 'tables') { await sleep(tablesDelay); return []; }
       return realCall(m, p);
     };
     const count = (m) => stubCalls.filter((x) => x === m).length;
@@ -737,6 +762,12 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     check('SQLite: ⌘. sends no cancel', count('cancelQuery') === 3);
     finish.resolve({ columns: ['x'], types: [null], rows: [[1]], truncated: false, ms: 1 }); await sleep(250);
     check('SQLite: the result shows and Run comes back', g.querySelectorAll('tbody tr').length === 1 && label() === 'Run' && !runBtn.disabled);
+    // the refresh of `tables` after a result is slow: a stale tick must not repaint "Running…" over the result
+    tablesDelay = 800;
+    editor.setValue('select 1'); runBtn.click(); await sleep(150);
+    finish.resolve({ columns: ['x'], types: [null], rows: [[1]], truncated: false, ms: 1 }); await sleep(600);
+    check('status shows the result, not Running…, while tables refresh', !/^Running/.test(statusEl.textContent) && /row/.test(statusEl.textContent), statusEl.textContent);
+    await sleep(500); tablesDelay = 0;
     // a failing query must not leave the button stuck on Stop
     active = 'pg-fake'; renderConns();
     editor.setValue('select nope'); runBtn.click(); await sleep(100);
@@ -1455,6 +1486,58 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     x0 = grabTab(0); await dragTo(x0, x0 + 200); release(x0 + 200);
     check('with one tab, dragging does nothing', tabs.length === 1 && noDragLeft());
     tiny.dialog.confirm = realConfirm6;
+
+    // ================= reordering connections =================
+    for (const c of await tiny.api.call('listConnections')) await tiny.api.call('deleteConnection', { id: c.id });
+    for (const n of ['rc1', 'rc2', 'rc3']) await tiny.api.call('saveConnection', { conn: { name: n, type: 'sqlite', path: ':memory:' }, password: null });
+    await load();
+    const cList = document.getElementById('conns');
+    const cRows = () => [...cList.children];
+    const cNames = () => cRows().map((li) => li.querySelector('.name').textContent).join();
+    const cStored = async () => (await tiny.api.call('listConnections')).map((c) => c.name).join();
+    const cptr = (type, y) => new PointerEvent(type, { clientX: 50, clientY: y, bubbles: true, cancelable: true, pointerId: 1, button: 0 });
+    const cMid = (i) => { const r = cRows()[i].firstElementChild.getBoundingClientRect(); return r.top + r.height / 2; };
+    const cDrag = async (from, y1, { commit = true, grab } = {}) => {
+      const y0 = cMid(from);
+      (grab || cRows()[from].querySelector('.head')).dispatchEvent(cptr('pointerdown', y0));
+      for (let k = 1; k <= 6; k++) { window.dispatchEvent(cptr('pointermove', y0 + ((y1 - y0) * k) / 6)); await sleep(20); }
+      if (!commit) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      else window.dispatchEvent(cptr('pointerup', y1));
+      await sleep(100);
+    };
+    const cClean = () => !cList.querySelector('.dragging') && !document.body.classList.contains('dragging-conn') && !connDragging;
+    check('(sanity) connections start in order', cNames() === 'rc1,rc2,rc3' && await cStored() === 'rc1,rc2,rc3', cNames());
+    await cDrag(0, cMid(2) + 4);
+    check('dragging the first row below the last moves it there', cNames() === 'rc2,rc3,rc1', cNames());
+    check('...the order is saved', await cStored() === 'rc2,rc3,rc1', await cStored());
+    check('...and `conns` matches the screen', conns.map((c) => c.name).join() === 'rc2,rc3,rc1' && cClean());
+    await cDrag(2, cMid(0) - 4);
+    check('dragging the last row above the first moves it to the top', cNames() === 'rc1,rc2,rc3' && await cStored() === 'rc1,rc2,rc3', cNames());
+    await cDrag(0, cMid(1) + 4, { commit: false });
+    check('Esc while dragging puts it back, and nothing is saved', cNames() === 'rc1,rc2,rc3' && await cStored() === 'rc1,rc2,rc3' && cClean(), cNames());
+    const cBefore = cNames(); cRows()[1].querySelector('.head').dispatchEvent(cptr('pointerdown', cMid(1)));
+    window.dispatchEvent(cptr('pointermove', cMid(1) + 2)); window.dispatchEvent(cptr('pointerup', cMid(1) + 2)); await sleep(50);
+    check('a press that barely moves is a click, not a drag', cNames() === cBefore && cClean());
+    await cDrag(0, cMid(2) + 4, { grab: cRows()[0].querySelector('[data-act="edit"]') });
+    check('pressing the edit button never starts a drag', cNames() === cBefore && cClean(), cNames());
+    // a drag must not also toggle or open the row
+    const cOnBefore = cRows().filter((li) => li.classList.contains('on')).length;
+    await cDrag(0, cMid(1) + 4); await sleep(50);
+    check('a drag does not connect the row it started on', cRows().filter((li) => li.classList.contains('on')).length === cOnBefore && cNames() === 'rc2,rc1,rc3', cNames());
+    // keyboard
+    cRows()[0].querySelector('.head').focus();
+    cRows()[0].querySelector('.head').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true })); await sleep(100);
+    check('Alt+↓ moves the focused connection down one and keeps focus on it', cNames() === 'rc1,rc2,rc3', cNames());  // from rc2,rc1,rc3: rc2 goes down one
+    check('...focus stays on the moved row', document.activeElement === cRows()[1].querySelector('.head') && await cStored() === cNames(), document.activeElement?.className);
+    cRows()[0].querySelector('.head').focus();
+    cRows()[0].querySelector('.head').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true })); await sleep(50);
+    check('Alt+↑ on the first row does nothing', cNames() === 'rc1,rc2,rc3' && await cStored() === 'rc1,rc2,rc3', cNames());
+    // editing keeps the place
+    const cMid2 = conns.find((c) => c.name === 'rc2');
+    await tiny.api.call('saveConnection', { conn: { ...cMid2, name: 'rc2b' }, password: null }); await load();
+    check('editing a connection keeps its place in the list', cNames() === 'rc1,rc2b,rc3', cNames());
+    await load();
+    check('the order survives a reload from the store', cNames() === 'rc1,rc2b,rc3');
 
     for (const c of await tiny.api.call('listConnections')) await tiny.api.call('deleteConnection', { id: c.id });
     check('cleanup', (await tiny.api.call('listConnections')).length === 0);

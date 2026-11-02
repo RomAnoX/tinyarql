@@ -237,7 +237,9 @@ $('envReset').onclick = async () => {
 };
 
 // ---- settings (persisted in tiny.store) ----
-const settings = { vim: false, theme: 'system' };
+const settings = { vim: false, theme: 'system', editorSize: 13 };
+const SIZE_MIN = 10, SIZE_MAX = 24;
+const cleanSize = (v) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(+v))) : 13);  // the store text lands in CSS: always a plain number
 const media = matchMedia('(prefers-color-scheme: dark)');
 // 'system' follows the OS live; the page and the editor both switch through the same CSS variables.
 function applyTheme() {
@@ -252,6 +254,9 @@ function applySettings() {
   applyTheme();
   editor.setVim(settings.vim);
   $('optVim').checked = settings.vim;
+  settings.editorSize = cleanSize(settings.editorSize);
+  $('sql').style.setProperty('--editor-size', settings.editorSize + 'px');  // style.css applies it to .cm-editor, so no editor rebuild
+  if (document.activeElement !== $('optSize')) $('optSize').value = settings.editorSize;  // don't rewrite what is being typed
 }
 applyTheme();  // match the OS before the saved settings arrive
 async function loadSettings() {
@@ -270,6 +275,13 @@ $('optVim').onchange = () => {
   applySettings();
   tiny.store.set('settings', settings);
 };
+$('optSize').oninput = () => {
+  if ($('optSize').value === '' || !$('optSize').checkValidity()) return;  // half-typed ("1"): wait for a valid number
+  settings.editorSize = +$('optSize').value;
+  applySettings();
+  tiny.store.set('settings', settings);
+};
+$('optSize').onchange = () => { settings.editorSize = cleanSize($('optSize').value); applySettings(); $('optSize').value = settings.editorSize; tiny.store.set('settings', settings); };
 const openSettings = () => { renderEnvList(); $('settings').showModal(); };
 $('settingsBtn').onclick = openSettings;
 $('settingsClose').onclick = () => { $('settings').close(); editor.focus(); };
@@ -282,7 +294,10 @@ function setActive(id) {
   if (t && t.connId !== id) { t.connId = id; persistTabs(); renderTabs(); }
 }
 
+let connDragging = false;  // a connection is being dragged: renderConns() waits, because it would replace the element under the pointer
+let connRenderWaiting = false;
 function renderConns() {
+  if (connDragging) { connRenderWaiting = true; return; }
   syncEditor();
   renderWhere();
   renderRun();
@@ -294,10 +309,9 @@ function renderConns() {
     return `
     <li class="conn ${on ? 'on' : ''} ${open ? 'open' : ''} ${busy ? 'connecting' : ''}" data-id="${esc(c.id)}">
       <div class="row">
-        <button class="head"${on ? ` aria-expanded="${open}"` : ''}${busy ? ' aria-busy="true"' : ''}><span class="chev">${icon('chevron-right', 14)}</span><span class="state">${icon(busy ? 'loader-circle' : on ? 'plug-zap' : 'unplug', 15)}</span><span class="name">${esc(c.name)}</span></button>
+        <button class="head"${on ? ` aria-expanded="${open}"` : ''}${busy ? ' aria-busy="true"' : ''}><span class="chev">${icon('chevron-right', 14)}</span><span class="state">${icon(busy ? 'loader-circle' : on ? 'plug-zap' : 'unplug', 15)}</span><span class="name">${esc(c.name)}</span>${on ? `<span class="count" title="${tables[c.id].length} tables and views">(${tables[c.id].length})</span>` : ''}</button>
         ${envTag(c)}
         ${busy ? '<span class="progress" role="status">Connecting…</span>' : ''}
-        ${on ? `<span class="count" title="${tables[c.id].length} tables and views">${tables[c.id].length}</span>` : ''}
         <span class="tools"><button data-act="edit" title="Edit connection" aria-label="Edit ${esc(c.name)}">${icon('pencil', 14)}</button><button data-act="del" title="Delete connection" aria-label="Delete ${esc(c.name)}">${icon('trash-2', 14)}</button></span>
       </div>
       ${open ? `<ul class="tbls">${tables[c.id].map((t) =>
@@ -309,11 +323,71 @@ function renderConns() {
     (focus.ref ? [...li?.querySelectorAll('.tbls li') || []].find((x) => x.dataset.ref === focus.ref) : li?.querySelector('.head'))?.focus();
   }
 }
+// ---- reordering: drag a connection's row up or down the sidebar, or Alt+↑/↓ on a focused one ----
+const persistConnOrder = () => call('reorderConnections', { ids: conns.map((c) => c.id) }).catch(() => {});
+function moveConn(id, toIndex) {
+  const from = conns.findIndex((c) => c.id === id), to = Math.max(0, Math.min(conns.length - 1, toIndex));
+  if (from < 0 || from === to) return;
+  conns.splice(to, 0, ...conns.splice(from, 1));
+  renderConns();  // keeps keyboard focus on the moved row
+  persistConnOrder();
+}
+$('conns').addEventListener('pointerdown', (e) => {
+  const list = $('conns'), pressed = e.target.closest('.conn > .row');
+  if (!pressed || e.button !== 0 || e.target.closest('[data-act]') || conns.length < 2) return;
+  const id = pressed.parentElement.dataset.id, startY = e.clientY, originalOrder = conns.map((c) => c.id);
+  let el = null;
+
+  const begin = () => {
+    connDragging = true;
+    el = [...list.children].find((c) => c.dataset.id === id);
+    el.classList.add('dragging');
+    document.body.classList.add('dragging-conn');
+  };
+  // Where it goes is decided from the pointer: it passes the middle of another connection's row and swaps with it.
+  const follow = (y) => {
+    const mid = (c) => { const r = c.firstElementChild.getBoundingClientRect(); return r.top + r.height / 2; };
+    const before = [...list.children].filter((c) => c !== el).find((c) => y < mid(c)) || null;
+    if (before !== el.nextElementSibling) list.insertBefore(el, before);
+  };
+  const move = (ev) => {
+    if (!connDragging) { if (Math.abs(ev.clientY - startY) < DRAG_THRESHOLD) return; begin(); }
+    follow(ev.clientY);
+  };
+  const end = (commit) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    document.removeEventListener('keydown', onKey, true);
+    document.body.classList.remove('dragging-conn');
+    if (!connDragging) return;  // it was only a click
+    const order = [...list.children].map((c) => c.dataset.id);
+    connDragging = false;
+    if (commit && order.join() !== originalOrder.join()) { conns.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); persistConnOrder(); }
+    connRenderWaiting = false;
+    renderConns();  // rebuilds the list from `conns`: undoes the move if it was cancelled
+    // the click the browser sends after the mouse is released must not also open or close the connection
+    const swallow = (ev) => { ev.stopImmediatePropagation(); ev.preventDefault(); };
+    list.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => list.removeEventListener('click', swallow, true), 0);
+  };
+  const up = () => end(true);
+  const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(false); } };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+  document.addEventListener('keydown', onKey, true);
+});
+
 // Table names are focusable list items (Enter/Space opens them). On a connection, → opens its tables and ← closes them.
 $('conns').addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.tbls li')) { e.preventDefault(); e.target.click(); }
   if (!e.target.matches('.head')) return;
   const id = e.target.closest('.conn').dataset.id;
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {  // move the connection itself, one place
+    e.preventDefault();
+    return moveConn(id, conns.findIndex((c) => c.id === id) + (e.key === 'ArrowDown' ? 1 : -1));
+  }
   if (e.key === 'ArrowRight' && tables[id] && !expanded.has(id)) { e.preventDefault(); expanded.add(id); renderConns(); }
   if (e.key === 'ArrowLeft' && tables[id] && expanded.has(id)) { e.preventDefault(); expanded.delete(id); renderConns(); }
 });
@@ -587,6 +661,7 @@ async function runSql() {
   renderTabs();
   await guarded('Query failed', async () => {
     const r = await call('query', { id: connId, sql });
+    clearInterval(runTimer);  // before deliver: the refresh of `tables` below is slow enough for a tick to repaint "Running…" over the result
     if (r.cancelled) return deliver(tab, { kind: 'notice', title: 'Query stopped', message: `Stopped after ${fmtMs(r.ms)}. The server cancelled it, so nothing was returned.` });
     deliver(tab, { kind: 'grid', r, view: null, sql, connId });  // sql + connId let Export CSV run it again for every row
     tables[connId] = await call('tables', { id: connId });  // the SQL may have created/dropped tables

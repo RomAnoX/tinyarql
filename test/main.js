@@ -34,6 +34,21 @@ await api.deleteConnection({ id: lite.id });
 await api.deleteConnection({ id: c.id });
 ok((await api.listConnections()).length === 0, 'delete');
 try { await api.query({ id: c.id, sql: 'select 1' }); ok(false, 'should throw'); } catch (e) { ok(e.message === 'not connected', 'disconnected throws'); }
+// ---- reorderConnections ----
+const oa = await api.saveConnection({ conn: { name: 'oa', type: 'sqlite', path: ':memory:' } });
+const ob = await api.saveConnection({ conn: { name: 'ob', type: 'sqlite', path: ':memory:' } });
+const oc = await api.saveConnection({ conn: { name: 'oc', type: 'sqlite', path: ':memory:' } });
+const names = async () => (await api.listConnections()).map((x) => x.name).join();
+ok(await names() === 'oa,ob,oc', 'connections start in creation order');
+await api.reorderConnections({ ids: [oc.id, oa.id, ob.id] });
+ok(await names() === 'oc,oa,ob', 'reorderConnections stores the new order');
+await api.saveConnection({ conn: { ...oa, name: 'oa2' } });
+ok(await names() === 'oc,oa2,ob', 'editing a connection keeps its place (it used to move to the end)');
+await api.reorderConnections({ ids: [ob.id] });
+ok(await names() === 'ob,oc,oa2', 'connections left out of the list follow it, in their old order');
+await api.reorderConnections({ ids: ['gone', oa.id, oc.id, ob.id] });
+ok(await names() === 'oa2,oc,ob', 'an unknown id is ignored');
+for (const x of [oa, ob, oc]) await api.deleteConnection({ id: x.id });
 // ---- .sql files ----
 const dir = `/tmp/tinyarql-main-test-${tjs.pid}`;
 await tjs.makeDir(dir, { recursive: true });

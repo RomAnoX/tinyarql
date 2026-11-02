@@ -145,6 +145,10 @@
     <p class="hint warn" id="envNote" role="status" style="margin-top:6px"></p>
     <p class="hint">A connection's environment colours the window edge, its tag and its tabs, so you can tell production from staging at a glance.</p>
   </div>
+  <div class="field">
+    <label for="optSize">Editor font size</label>
+    <div class="row"><input type="number" id="optSize" min="10" max="24" step="1" style="width:5em"> <span class="hint">px (10 to 24)</span></div>
+  </div>
   <label class="check"><input type="checkbox" id="optVim"> Vim keybindings in the editor</label>
   <p class="hint">Adds Vim modes to the SQL editor. <code>:w</code> runs the query; ⌘/Ctrl+Enter still works.</p>
   <div class="actions"><span class="spacer"></span><button id="settingsClose" class="primary">Done</button></div>
