@@ -1,0 +1,19 @@
+tinyjs.json
+  s_2231143fe4dea0::t_c42412ba4f4761 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76966bd43bad88bc90afb74aec8bdf3ae2087c76",
+  "prompts": {},
+  "sessions": {
+    "s_2231143fe4dea0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bbfd905c-9305-4cf1-942e-f5926ecaa86c",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
