@@ -706,6 +706,18 @@ $('detailCopy').onclick = () => {
   setCopyLabel(true);
   setTimeout(() => setCopyLabel(false), 1000);
 };
+// ⌘C on the selected cell copies its exact value. Anything the user is copying on purpose wins: a text selection
+// (say, inside the detail panel), a field, the editor or an open dialog.
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'c' || !detail) return;
+  if (document.querySelector('dialog[open]') || window.getSelection().toString()) return;
+  if (e.target.closest?.('input, textarea, select, #sql, [contenteditable]')) return;
+  e.preventDefault();
+  const v = result.rows[detail.r]?.[detail.c];
+  if (v === undefined) return;
+  tiny.clipboard.write({ text: v === null ? '' : String(v) });
+  status('Copied cell value');
+});
 // Esc closes the panel (but not while a dialog or the editor has focus).
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && detail && !document.querySelector('dialog[open]') && !e.target.closest?.('#sql')) closeDetail();

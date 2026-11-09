@@ -526,6 +526,17 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     el('detailCopy').click();
     check('copy sends the cell value', copied && copied.text === 'hello', JSON.stringify(copied));
     check('copy button confirms with a check icon', el('detailCopy').textContent.trim() === 'Copied' && !!el('detailCopy').querySelector('svg'), el('detailCopy').textContent);
+    copied = null; document.activeElement.blur?.();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, bubbles: true, cancelable: true }));
+    check('⌘C copies the selected cell value', copied && copied.text === 'hello', JSON.stringify(copied));
+    copied = null; fdIn.focus();
+    fdIn.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, bubbles: true, cancelable: true }));
+    check('⌘C inside a field is left to the field (negative control)', copied === null);
+    fdIn.blur();
+    copied = null; { const rg = document.createRange(); rg.selectNodeContents(dbody); getSelection().removeAllRanges(); getSelection().addRange(rg); }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, bubbles: true, cancelable: true }));
+    check('⌘C with highlighted text copies that text, not the cell (negative control)', copied === null);
+    getSelection().removeAllRanges();
     cells()[2].click();
     check('NULL cell shows NULL', dbody.textContent === 'NULL');
     check('a NULL cell has no find bar and no highlights', el('detailFindBar').hidden && fdHits() === 0);
