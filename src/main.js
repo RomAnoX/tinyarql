@@ -6,6 +6,7 @@ import { openTunnel } from './tunnel.js';
 import { restoreWindow, trackWindow } from './windowstate.js';
 import { createCsvWriter } from './csv.js';
 import { readCa } from './tls.js';
+import { safeFileName } from './sqlfiles.js';
 
 const drivers = {
   postgres: (c, password, tls) => connectPostgres({ host: c.host, port: +c.port || 5432, user: c.user, password, database: c.database, tls }),
@@ -156,6 +157,28 @@ export const api = {
     if (typeof text !== 'string') throw new Error('Nothing to write');
     try { await tjs.writeFile(path, text); } catch (e) { throw fsError(e, 'Could not save the file', { ENOENT: 'That folder does not exist' }); }
     return { bytes: new TextEncoder().encode(text).length };
+  },
+
+  // Saved-query library to a folder the user picked: one <name>.sql each. Never overwrites: a taken name gets " (2)", " (3)", ...
+  async exportQueries({ dir, items }) {
+    if (!isFullPath(dir)) throw new Error('Choose a full folder path');
+    if (!Array.isArray(items) || !items.length) throw new Error('Nothing to export');
+    let st;
+    try { st = await tjs.stat(dir); } catch (e) { throw fsError(e, 'Could not open the folder', { ENOENT: 'That folder does not exist' }); }
+    if (!st.isDirectory) throw new Error(FS_MESSAGES.ENOTDIR);
+    const taken = async (path) => { try { await tjs.stat(path); return true; } catch { return false; } };
+    let written = 0;
+    for (const { name, sql } of items) {
+      if (typeof sql !== 'string') throw new Error('Nothing to write');
+      const base = safeFileName(name);
+      let file = `${base}.sql`;
+      for (let n = 2; await taken(`${dir}/${file}`); n++) file = `${base} (${n}).sql`;
+      const text = sql.endsWith('\n') ? sql : sql + '\n';
+      try { await tjs.writeFile(`${dir}/${file}`, text); }
+      catch (e) { throw new Error(`${fsError(e, 'Could not save the file').message} (${written} of ${items.length} written)`); }
+      written++;
+    }
+    return { written };
   },
 
   // CSV of rows the page already holds (what the grid shows). Written to <path>.part and renamed into place when complete.

@@ -237,9 +237,14 @@ $('envReset').onclick = async () => {
 };
 
 // ---- settings (persisted in tiny.store) ----
-const settings = { vim: false, theme: 'system', editorSize: 13 };
+const settings = { vim: false, theme: 'system', editorSize: 13, zoom: 1, expandOnConnect: false };
 const SIZE_MIN = 10, SIZE_MAX = 24;
 const cleanSize = (v) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(SIZE_MAX, Math.max(SIZE_MIN, Math.round(+v))) : 13);  // the store text lands in CSS: always a plain number
+// App zoom is the webview's own (tiny.win.setZoom): the page lays out in fewer CSS px, so splitters, 24px targets and the editor's measured
+// line height stay consistent. It multiplies editorSize rather than replacing it.
+const ZOOM_MIN = 0.5, ZOOM_MAX = 2;
+const cleanZoom = (v) => (Number.isFinite(+v) && v !== '' && v !== null ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(+v * 10) / 10)) : 1);
+let appliedZoom = 1;
 const media = matchMedia('(prefers-color-scheme: dark)');
 // 'system' follows the OS live; the page and the editor both switch through the same CSS variables.
 function applyTheme() {
@@ -257,6 +262,10 @@ function applySettings() {
   settings.editorSize = cleanSize(settings.editorSize);
   $('sql').style.setProperty('--editor-size', settings.editorSize + 'px');  // style.css applies it to .cm-editor, so no editor rebuild
   if (document.activeElement !== $('optSize')) $('optSize').value = settings.editorSize;  // don't rewrite what is being typed
+  settings.expandOnConnect = settings.expandOnConnect === true;  // the store text is not trusted to be a boolean
+  $('optExpand').checked = settings.expandOnConnect;
+  settings.zoom = cleanZoom(settings.zoom);
+  if (settings.zoom !== appliedZoom) { appliedZoom = settings.zoom; tiny.win.setZoom(appliedZoom); }
 }
 applyTheme();  // match the OS before the saved settings arrive
 async function loadSettings() {
@@ -275,6 +284,11 @@ $('optVim').onchange = () => {
   applySettings();
   tiny.store.set('settings', settings);
 };
+$('optExpand').onchange = () => {
+  settings.expandOnConnect = $('optExpand').checked;
+  applySettings();
+  tiny.store.set('settings', settings);
+};
 $('optSize').oninput = () => {
   if ($('optSize').value === '' || !$('optSize').checkValidity()) return;  // half-typed ("1"): wait for a valid number
   settings.editorSize = +$('optSize').value;
@@ -282,6 +296,19 @@ $('optSize').oninput = () => {
   tiny.store.set('settings', settings);
 };
 $('optSize').onchange = () => { settings.editorSize = cleanSize($('optSize').value); applySettings(); $('optSize').value = settings.editorSize; tiny.store.set('settings', settings); };
+function setZoom(z) {  // z null = back to 100%
+  settings.zoom = z === null ? 1 : cleanZoom(z);
+  applySettings();
+  tiny.store.set('settings', settings);
+  status(`Zoom ${Math.round(settings.zoom * 100)}%`);
+}
+// ⌘+ / ⌘- / ⌘0. Only ⌘ with Vim on: Ctrl+0 and Ctrl+- are Vim keys. "=" is the same key as "+" without Shift.
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || (e.ctrlKey && !settings.vim)) || e.altKey) return;
+  if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(settings.zoom + 0.1); }
+  else if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoom(settings.zoom - 0.1); }
+  else if (e.key === '0') { e.preventDefault(); setZoom(null); }
+});
 const openSettings = () => { renderEnvList(); $('settings').showModal(); };
 $('settingsBtn').onclick = openSettings;
 $('settingsClose').onclick = () => { $('settings').close(); editor.focus(); };
@@ -394,6 +421,7 @@ $('conns').addEventListener('keydown', (e) => {
 
 // ---- cell detail panel: JSON tree / raw text for the clicked cell ----
 let result = { columns: [], types: [], rows: [] };  // what the grid currently shows
+let sel = null;                                      // selected cell rectangle { ar, ac, fr, fc }: anchor and focus corner
 let detail = null;                                   // { r, c, mode: 'tree' | 'json' | 'raw' } while the panel is open
 let jsonMode = 'tree';                               // the view last chosen for JSON cells; the next JSON cell opens in it
 const isJsonType = (t) => t === 'json' || t === 'jsonb';
@@ -420,11 +448,9 @@ function tree(v, depth = 0) {
 }
 
 function renderDetail() {
-  $('grid').querySelectorAll('td.sel').forEach((td) => td.classList.remove('sel'));
   $('detail').hidden = !detail;
   if (!detail) return;
   const { r, c } = detail;
-  $('grid').querySelector(`td[data-r="${r}"][data-c="${c}"]`)?.classList.add('sel');
   const v = result.rows[r][c], type = result.types[c];
   const json = parseJson(v, type);
   $('detailTitle').innerHTML = `${esc(result.columns[c])}<small>${esc(type || (json.ok ? 'json' : 'text'))}</small>`;
@@ -488,7 +514,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault(); $('detailFind').focus(); $('detailFind').select();
   }
 });
-const closeDetail = () => { detail = null; renderDetail(); };
+const closeDetail = () => { detail = null; sel = null; paintSel(); renderDetail(); };
 
 let showingResult = false;  // false = the grid area shows the empty/welcome state
 
@@ -497,6 +523,7 @@ function renderEmpty() {
   $('exportCsv').hidden = true;
   result = { columns: [], types: [], rows: [] };
   detail = null;
+  sel = null;
   $('detail').hidden = true;
   $('grid').innerHTML = conns.length
     ? '<div class="empty">Pick a connection, then run a query or open a table.</div>'
@@ -519,6 +546,7 @@ function renderGrid({ columns, types = [], rows, truncated, ms, tag }) {
   $('exportCsv').hidden = !columns.length;
   showingResult = true;
   detail = null;
+  sel = null;
   $('detail').hidden = true;
   // Numbers right-align. Postgres reports a numeric type; SQLite has none, so a column of JS numbers counts.
   const num = columns.map((_, j) => NUMERIC.has(types[j]) ||
@@ -542,6 +570,7 @@ function showError(title, message) {
   $('exportCsv').hidden = true;
   result = { columns: [], types: [], rows: [] };
   detail = null;
+  sel = null;
   $('detail').hidden = true;
   $('grid').innerHTML = `<div class="error" role="alert"><strong>${icon('circle-alert')}${esc(title)}</strong><pre>${esc(message)}</pre></div>`;
   status('Failed', true);
@@ -552,6 +581,7 @@ function showNotice(title, message) {
   $('exportCsv').hidden = true;
   result = { columns: [], types: [], rows: [] };
   detail = null;
+  sel = null;
   $('detail').hidden = true;
   $('grid').innerHTML = `<div class="notice" role="status"><strong>${icon('square', 14)}${esc(title)}</strong><p>${esc(message)}</p></div>`;
   status('Stopped');
@@ -591,7 +621,7 @@ async function connect(id) {
   renderConns();
   await guarded('Couldn’t connect', async () => {
     tables[id] = await call('connect', { id });
-    expanded.add(id);
+    if (settings.expandOnConnect) expanded.add(id);
     status('Connected');
   });
   connecting.delete(id);
@@ -684,14 +714,69 @@ async function browse(ref, page = 0) {
   renderConns();
 }
 
+// ---- cell selection: click, Shift+click, drag, or Shift+arrows; ⌘C copies the rectangle as a table ----
+function paintSel() {
+  $('grid').querySelectorAll('td.sel').forEach((td) => td.classList.remove('sel'));
+  if (!sel) return;
+  const [r0, r1] = [Math.min(sel.ar, sel.fr), Math.max(sel.ar, sel.fr)], [c0, c1] = [Math.min(sel.ac, sel.fc), Math.max(sel.ac, sel.fc)];
+  $('grid').querySelectorAll('td[data-r]').forEach((td) => { if (+td.dataset.r >= r0 && +td.dataset.r <= r1 && +td.dataset.c >= c0 && +td.dataset.c <= c1) td.classList.add('sel'); });
+}
+const selCount = () => (Math.abs(sel.ar - sel.fr) + 1) * (Math.abs(sel.ac - sel.fc) + 1);
+const tell = () => { if (sel && selCount() > 1) status(`${selCount()} cells selected: ⌘C copies them, ⇧⌘C with the column names`); };
+// A TSV field with a tab, a line break or a quote is quoted (quote doubled), the way spreadsheets read it.
+const tsvField = (v) => (/[\t\r\n"]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+// The selected rectangle as { text, html } (TSV for spreadsheets, a table for rich text). NULL is an empty field, values are exact.
+function selectionTable(withHeaders) {
+  const [r0, r1] = [Math.min(sel.ar, sel.fr), Math.max(sel.ar, sel.fr)], [c0, c1] = [Math.min(sel.ac, sel.fc), Math.max(sel.ac, sel.fc)];
+  const cols = []; for (let c = c0; c <= c1; c++) cols.push(c);
+  const body = result.rows.slice(r0, r1 + 1).map((row) => cols.map((c) => (row[c] === null ? '' : String(row[c]))));
+  const head = withHeaders ? [cols.map((c) => result.columns[c])] : [];
+  return {
+    text: [...head, ...body].map((r) => r.map(tsvField).join('\t')).join('\n'),
+    html: `<table>${head.map((r) => `<tr>${r.map((v) => `<th>${esc(v)}</th>`).join('')}</tr>`).join('')}${body.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</table>`,
+  };
+}
+// ponytail: dragging past the edge of the grid does not auto-scroll; extend with Shift+click or Shift+arrows instead.
+let gridDrag = null, swallowClick = false;
+$('grid').addEventListener('pointerdown', (e) => {
+  const td = e.target.closest('td[data-r]');
+  if (e.button !== 0 || e.shiftKey || !td) return;
+  gridDrag = { r: +td.dataset.r, c: +td.dataset.c, moved: false };
+});
+$('grid').addEventListener('pointermove', (e) => {
+  const td = gridDrag && e.target.closest('td[data-r]');
+  if (!td || (+td.dataset.r === sel?.fr && +td.dataset.c === sel?.fc && gridDrag.moved)) return;
+  if (+td.dataset.r === gridDrag.r && +td.dataset.c === gridDrag.c && !gridDrag.moved) return;
+  gridDrag.moved = true;
+  sel = { ar: gridDrag.r, ac: gridDrag.c, fr: +td.dataset.r, fc: +td.dataset.c };
+  paintSel(); tell();
+});
+window.addEventListener('pointerup', () => {
+  if (gridDrag?.moved) { swallowClick = true; setTimeout(() => { swallowClick = false; }, 0); }  // the click that follows a drag is not a pick
+  gridDrag = null;
+});
+window.addEventListener('pointercancel', () => { gridDrag = null; });
 $('grid').addEventListener('click', (e) => {
   const choice = e.target.closest('[data-new]');
   if (choice) return openForm(null, choice.dataset.new);
   const td = e.target.closest('td[data-r]');
-  if (!td) return;
+  if (!td || swallowClick) return;
   const r = +td.dataset.r, c = +td.dataset.c;
+  if (e.shiftKey && sel) { sel = { ...sel, fr: r, fc: c }; paintSel(); tell(); return; }  // extends the rectangle; the panel stays on the first cell
+  sel = { ar: r, ac: c, fr: r, fc: c };
+  paintSel();
   detail = { r, c, mode: jsonMode };
   renderDetail();
+});
+// Shift+arrows move the far corner (only when nothing else has the keys: not the editor, a field or a list).
+document.addEventListener('keydown', (e) => {
+  const d = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+  if (!d || !sel || !e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open]')) return;
+  if (e.target !== document.body && !$('grid').contains(e.target)) return;
+  e.preventDefault();
+  sel = { ...sel, fr: Math.max(0, Math.min(result.rows.length - 1, sel.fr + d[0])), fc: Math.max(0, Math.min(result.columns.length - 1, sel.fc + d[1])) };
+  paintSel(); tell();
+  $('grid').querySelector(`td[data-r="${sel.fr}"][data-c="${sel.fc}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 });
 for (const mode of ['tree', 'json', 'raw']) {
   $('detail' + mode[0].toUpperCase() + mode.slice(1)).onclick = () => { detail.mode = jsonMode = mode; renderDetail(); };
@@ -706,21 +791,25 @@ $('detailCopy').onclick = () => {
   setCopyLabel(true);
   setTimeout(() => setCopyLabel(false), 1000);
 };
-// ⌘C on the selected cell copies its exact value. Anything the user is copying on purpose wins: a text selection
-// (say, inside the detail panel), a field, the editor or an open dialog.
+// ⌘C copies the selection: one cell is its exact value; several are a table (⇧⌘C adds the column names). Anything the user
+// is copying on purpose wins: a text selection (say, inside the detail panel), a field, the editor or an open dialog.
 document.addEventListener('keydown', (e) => {
-  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'c' || !detail) return;
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'c' || !sel) return;
   if (document.querySelector('dialog[open]') || window.getSelection().toString()) return;
   if (e.target.closest?.('input, textarea, select, #sql, [contenteditable]')) return;
   e.preventDefault();
-  const v = result.rows[detail.r]?.[detail.c];
-  if (v === undefined) return;
-  tiny.clipboard.write({ text: v === null ? '' : String(v) });
-  status('Copied cell value');
+  if (result.rows[sel.fr]?.[sel.fc] === undefined) return;
+  if (selCount() === 1 && !e.shiftKey) {
+    const v = result.rows[sel.fr][sel.fc];
+    tiny.clipboard.write({ text: v === null ? '' : String(v) });
+    return status('Copied cell value');
+  }
+  tiny.clipboard.write(selectionTable(e.shiftKey));
+  status(`Copied ${selCount()} cell${selCount() === 1 ? '' : 's'}${e.shiftKey ? ' with column names' : ''}`);
 });
 // Esc closes the panel (but not while a dialog or the editor has focus).
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && detail && !document.querySelector('dialog[open]') && !e.target.closest?.('#sql')) closeDetail();
+  if (e.key === 'Escape' && (detail || sel) && !document.querySelector('dialog[open]') && !e.target.closest?.('#sql')) closeDetail();
 });
 
 $('conns').addEventListener('click', async (e) => {
@@ -1103,6 +1192,7 @@ function renderSaved() {
   $('savedGroup').classList.toggle('open', savedOpen);
   $('savedHead').setAttribute('aria-expanded', savedOpen);
   $('savedCount').textContent = words.length ? `${list.length} of ${queries.length}` : queries.length;
+  $('savedExport').hidden = !queries.length;
   $('savedSearchBox').hidden = !savedOpen || !queries.length;
   $('savedSearchClear').hidden = !savedFilter;
   const sel = currentTab()?.savedId;
@@ -1189,6 +1279,17 @@ async function openFiles(paths) {
   }
   editor.focus();
 }
+// The whole library (not just what the filter shows), one <name>.sql per query, into a folder the user picks.
+async function exportLibrary() {
+  if (!queries.length) return;
+  const dir = await tiny.dialog.pickFolder();
+  if (!dir) return;
+  try {
+    const { written } = await call('exportQueries', { dir, items: queries.map(({ name, sql }) => ({ name, sql })) });
+    status(`Exported ${written} saved ${written === 1 ? 'query' : 'queries'} to ${baseName(dir)}`);
+  } catch (e) { tiny.dialog.alert('Couldn’t export the saved queries', String(e.message || e)); }
+}
+$('savedExport').onclick = exportLibrary;
 async function openFileDialog() {
   const paths = await tiny.dialog.openFiles({ types: ['sql', 'txt'] });
   if (paths && paths.length) await openFiles(paths);
@@ -1360,7 +1461,8 @@ async function load() {
   renderConns();
   if (!showingResult) renderEmpty();
 }
-load().then(loadTabs);
+// Finder's Open With / double-click / second launch. Registered only after the saved tabs are back: the OS buffers a cold-start file, and it must land on top of the restored tabs, not before them.
+load().then(loadTabs).then(() => tiny.app.onOpenFiles(handleDrop));
 loadSettings();
 loadLayout();
 loadEnvs();

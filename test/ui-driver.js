@@ -253,6 +253,36 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     check('font size: a saved size is restored on load', getComputedStyle(cmEl).fontSize === '18px' && fsInput.value === '18');
     await typeSize('13');
     check('font size: the grid and other text are untouched', getComputedStyle(document.getElementById('grid')).fontSize !== '20px');
+    // ---- expand the table list on connect (Settings) ----
+    const exBox = document.getElementById('optExpand');
+    check('expand on connect: off by default, and the box shows it', settings.expandOnConnect === false && exBox.checked === false);
+    exBox.click(); await sleep(100);
+    check('expand on connect: ticking it turns it on and saves it', settings.expandOnConnect === true && (await tiny.store.get('settings')).expandOnConnect === true);
+    await tiny.store.set('settings', { ...settings, expandOnConnect: 'yes' }); await loadSettings();
+    check('expand on connect: a non-boolean from the store counts as off', settings.expandOnConnect === false && exBox.checked === false);
+    exBox.click(); await sleep(100);  // the connection checks below expect the list open
+    // ---- app zoom (⌘+ / ⌘- / ⌘0), the webview's own zoom: the page gets fewer CSS px ----
+    const zmKey = (key, extra = {}) => document.dispatchEvent(new KeyboardEvent('keydown', { key, metaKey: true, bubbles: true, cancelable: true, ...extra }));
+    const zmW0 = innerWidth;
+    check('zoom: 100% by default', settings.zoom === 1);
+    zmKey('='); await sleep(300);
+    check('zoom: ⌘+ goes to 110%, the page has fewer CSS px, and it is saved', settings.zoom === 1.1 && innerWidth < zmW0 && (await tiny.store.get('settings')).zoom === 1.1, `${zmW0} -> ${innerWidth}`);
+    check('zoom: the status says so', document.getElementById('status').textContent === 'Zoom 110%');
+    zmKey('-'); zmKey('-'); await sleep(300);
+    check('zoom: ⌘- steps down (and the page grows past 100%)', settings.zoom === 0.9 && innerWidth > zmW0, `${innerWidth}`);
+    for (let i = 0; i < 20; i++) zmKey('-');
+    check('zoom: stops at 50%', settings.zoom === 0.5);
+    for (let i = 0; i < 30; i++) zmKey('+', { shiftKey: true });
+    check('zoom: stops at 200%', settings.zoom === 2);
+    zmKey('0'); await sleep(300);
+    check('zoom: ⌘0 resets to 100% and the page width returns', settings.zoom === 1 && innerWidth === zmW0, `${innerWidth}`);
+    zmKey('=', { altKey: true }); await sleep(50);
+    check('zoom: negative control, ⌘⌥+ is not a zoom key', settings.zoom === 1);
+    await tiny.store.set('settings', { ...settings, zoom: 'red; x' }); await loadSettings();
+    check('zoom: junk from the store falls back to 100%', settings.zoom === 1);
+    await tiny.store.set('settings', { ...settings, zoom: 1.3 }); await loadSettings(); await sleep(300);
+    check('zoom: a saved zoom is restored on load', settings.zoom === 1.3 && innerWidth < zmW0);
+    zmKey('0'); await sleep(300);
     document.getElementById('settingsClose').click();
     check('settings dialog closes', !document.getElementById('settings').open);
     // ---- environments (Settings) ----
@@ -552,6 +582,52 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     check('close button closes the panel', panel.hidden);
     cells()[0].click(); await run('select 1 as n');
     check('new result closes the panel', panel.hidden);
+    // ---- selecting several cells and copying them as a table ----
+    await run("select 1 as a, 'x\ty' as b, '<b>x' as c union all select 2, 'q\"r', 'z' union all select 3, 'line\nbreak', null");
+    let mcCopied = null; tiny.clipboard.write = (x) => { mcCopied = x; };
+    const mc = (r, c) => g.querySelector(`td[data-r="${r}"][data-c="${c}"]`), mcSel = () => [...g.querySelectorAll('td.sel')].map((td) => `${td.dataset.r}${td.dataset.c}`).join();
+    const mcKey = (key, extra = {}, to = document.body) => to.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
+    const mcCopy = (extra = {}) => { mcCopied = null; document.activeElement.blur?.(); mcKey('c', { metaKey: true, ...extra }); };
+    mc(0, 0).click();
+    mc(1, 1).dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+    check('Shift+click selects the rectangle between the two cells', mcSel() === '00,01,10,11', mcSel());
+    check('...and the detail panel stays on the first cell', !panel.hidden && el('detailTitle').textContent.startsWith('a'));
+    mcCopy();
+    check('⌘C on several cells copies a tab-separated table, quoting what would break it, no headers', mcCopied?.text === '1\t"x\ty"\n2\t"q""r"', JSON.stringify(mcCopied));
+    check('...and the same cells as an HTML table without headers', mcCopied?.html === '<table><tr><td>1</td><td>x\ty</td></tr><tr><td>2</td><td>q&quot;r</td></tr></table>', mcCopied?.html);
+    mcCopy({ shiftKey: true });
+    check('⇧⌘C adds the column names, in both formats', mcCopied?.text === 'a\tb\n1\t"x\ty"\n2\t"q""r"' && mcCopied?.html.startsWith('<table><tr><th>a</th><th>b</th></tr>'), JSON.stringify(mcCopied));
+    check('the status line says what was copied', document.getElementById('status').textContent === 'Copied 4 cells with column names', document.getElementById('status').textContent);
+    // drag, with NULL and a line break inside a value
+    const mcDown = (td) => td.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 2 }));
+    mcDown(mc(1, 1)); mc(2, 2).dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 2 })); window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 }));
+    mc(2, 2).dispatchEvent(new MouseEvent('click', { bubbles: true }));  // the click a real drag ends with
+    check('dragging from one cell to another selects the rectangle', mcSel() === '11,12,21,22', mcSel());
+    check('...and the click that ends a drag does not move the detail panel', el('detailTitle').textContent.startsWith('a'));
+    mcCopy();
+    check('NULL is an empty field and a line break inside a value is quoted', mcCopied?.text === '"q""r"\tz\n"line\nbreak"\t', JSON.stringify(mcCopied?.text));
+    await sleep(20);
+    mc(0, 1).click();
+    check('after the drag, a plain click is a plain pick again', mcSel() === '01' && el('detailTitle').textContent.startsWith('b'));
+    mcCopy();
+    check('one cell still copies its exact value, as plain text only', mcCopied?.text === 'x\ty' && !('html' in mcCopied), JSON.stringify(mcCopied));
+    mc(0, 0).click(); mcKey('ArrowRight', { shiftKey: true }); mcKey('ArrowRight', { shiftKey: true }); mcKey('ArrowRight', { shiftKey: true }); mcKey('ArrowDown', { shiftKey: true });
+    check('Shift+arrows grow the selection and stop at the edge of the grid', mcSel() === '00,01,02,10,11,12', mcSel());
+    mcCopy();
+    check('HTML in a value is escaped in the HTML table', mcCopied?.html.includes('&lt;b&gt;x') && !mcCopied.html.includes('<b>'), mcCopied?.html);
+    mcKey('ArrowLeft', { shiftKey: true }, document.querySelector('#sql .cm-content'));
+    check('Shift+arrows in the editor leave the selection alone (negative control)', mcSel() === '00,01,02,10,11,12', mcSel());
+    mcKey('ArrowDown', { shiftKey: true, metaKey: true });
+    check('⌘Shift+arrows do not move it either (negative control)', mcSel() === '00,01,02,10,11,12', mcSel());
+    document.getElementById('sql').querySelector('.cm-content').focus();
+    mcCopied = null; mcKey('c', { metaKey: true }, document.querySelector('#sql .cm-content'));
+    check('⌘C in the editor is left to the editor (negative control)', mcCopied === null);
+    mcKey('Escape');
+    check('Esc clears the selection', mcSel() === '' && panel.hidden);
+    mcCopy();
+    check('⌘C with nothing selected copies nothing', mcCopied === null);
+    mc(0, 0).click(); await run('select 1 as n');
+    check('a new result clears the selection', mcSel() === '' && !g.querySelector('td.sel'));
     // column type wins over text sniffing (what Postgres json/jsonb columns report)
     renderGrid({ columns: ['j'], types: ['jsonb'], rows: [['"just a string"'], ['42'], ['not json']], truncated: false, ms: 0 });
     check('jsonb-typed scalars count as JSON', cells()[0].classList.contains('json') && cells()[1].classList.contains('json') && !cells()[2].classList.contains('json'));
@@ -641,6 +717,16 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     check('click again expands; the open table is still highlighted', !!conn1().querySelector('.tbls') && !!conn1().querySelector('.tbls li.sel'));
     head1().click(); await run('select 1 as n');
     check('collapsed state survives running a query', !conn1().querySelector('.tbls') && head1().getAttribute('aria-expanded') === 'false');
+    // connecting honours the setting (the list was open on connect for every check above, which ran with it on)
+    const exId = conns.find((c) => tables[c.id])?.id;
+    // the database behind this connection is in memory, so a real reconnect would lose its tables: stub the backend's connect with the list it already had
+    const exKeep = tables[exId], exReal = tiny.api.call;
+    const exReconnect = async (on) => { settings.expandOnConnect = on; delete tables[exId]; expanded.delete(exId); tiny.api.call = async (m, p) => (m === 'connect' ? exKeep : exReal(m, p)); await connect(exId); tiny.api.call = exReal; };
+    await exReconnect(false);
+    check('connect with the setting off leaves the table list closed, but connected', !!tables[exId] && !expanded.has(exId) && !conn1().querySelector('.tbls') && head1().getAttribute('aria-expanded') === 'false');
+    await exReconnect(true);
+    check('connect with the setting on opens the table list', expanded.has(exId) && tcount() >= 2, String(tcount()));
+    expanded.delete(exId); renderConns();  // the keyboard checks below start from collapsed, as before
     head1().focus(); arrow(head1(), 'ArrowRight');
     check('→ expands and keeps keyboard focus on the connection', !!conn1().querySelector('.tbls') && document.activeElement === head1(), String(document.activeElement && document.activeElement.className));
     arrow(head1(), 'ArrowLeft');
@@ -1125,6 +1211,25 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     editor.setValue('   \n');
     const savesBefore = fcount('saveFile'); document.getElementById('exportBtn').click(); await sleep(200);
     check('exporting an empty query does nothing but say so', fcount('saveFile') === savesBefore && document.getElementById('status').textContent === 'Nothing to export: the query is empty');
+    // ---- export the saved-query library to a folder ----
+    let folderAnswer = temp; const folderAsks = [];
+    const realPick = tiny.dialog.pickFolder; tiny.dialog.pickFolder = async () => { folderAsks.push(1); return folderAnswer; };
+    const xBtn = document.getElementById('savedExport');
+    queries = []; renderSaved();
+    check('library export: the button is hidden while there are no saved queries', xBtn.hidden);
+    queries = [{ id: 'xa', name: 'tinyarql-ui-lib-a', sql: 'select 1', connId: null, updatedAt: 1 }, { id: 'xb', name: 'tinyarql-ui-lib-b', sql: 'select 2;\n', connId: null, updatedAt: 2 }]; renderSaved();
+    check('library export: ...and shown, labelled, with an icon, once there are some', !xBtn.hidden && xBtn.getAttribute('aria-label') === 'Export saved queries to a folder' && !!xBtn.querySelector('svg'));
+    document.getElementById('savedSearch').value = 'tinyarql-ui-lib-a'; document.getElementById('savedSearch').dispatchEvent(new Event('input', { bubbles: true }));
+    xBtn.click(); await sleep(400);
+    const xa = await tiny.api.call('readTextFile', { path: `${temp}/tinyarql-ui-lib-a.sql` }), xb = await tiny.api.call('readTextFile', { path: `${temp}/tinyarql-ui-lib-b.sql` });
+    check('library export: every saved query is written, even those the filter hides', xa.text === 'select 1\n' && xb.text === 'select 2;\n', JSON.stringify([xa.text, xb.text]));
+    check('library export: the status line says how many and where', document.getElementById('status').textContent === `Exported 2 saved queries to ${temp.split('/').pop()}`, document.getElementById('status').textContent);
+    const xAlerts = fcount('alert'); folderAnswer = null; xBtn.click(); await sleep(200);
+    check('library export: cancelling the folder dialog does nothing', folderAsks.length === 2 && fcount('alert') === xAlerts);
+    folderAnswer = '/nonexistent-dir'; xBtn.click(); await sleep(300);
+    check('library export: a failure says why, in an alert', flast('alert')[1] === 'Couldn’t export the saved queries' && flast('alert')[2] === 'That folder does not exist', JSON.stringify(flast('alert')));
+    document.getElementById('savedSearch').value = ''; document.getElementById('savedSearch').dispatchEvent(new Event('input', { bubbles: true }));
+    tiny.dialog.pickFolder = realPick; queries = []; renderSaved();
     editor.setValue('select 8');
     const exportedTab = currentId;
     document.getElementById('newTab').click(); await sleep(100);
@@ -1553,7 +1658,7 @@ setInterval(() => { try { tiny.store.set('beat', Date.now()); tiny.store.set('be
     for (const c of await tiny.api.call('listConnections')) await tiny.api.call('deleteConnection', { id: c.id });
     check('cleanup', (await tiny.api.call('listConnections')).length === 0);
   } catch (e) {
-    check('no exception', false, String(e && e.message || e));
+    check('no exception', false, String(e && (e.stack || e.message) || e));
   }
   results.done = true;
   await save();

@@ -205,7 +205,7 @@ th, td { padding: 4px 12px; text-align: left; white-space: pre; max-width: 420px
 th { position: sticky; top: 0; background: var(--panel); font-weight: 600; vertical-align: bottom; border-bottom-color: var(--rule-strong); }
 .ctype { display: block; color: var(--dim); font-weight: 400; font-size: 11px; }
 th.num, td.num { text-align: right; }
-td { cursor: default; }
+td { cursor: default; user-select: none; -webkit-user-select: none; }  /* a drag selects cells, not text */
 td.null { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--hatch) 4px 5px); }
 td.sel { outline: 1px solid var(--accent-line); outline-offset: -1px; background: var(--cell-sel); }
 .jb { display: inline-flex; vertical-align: -2px; margin-right: 8px; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 3px; color: var(--dim); }
