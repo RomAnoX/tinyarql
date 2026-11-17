@@ -1,0 +1,53 @@
+tinyjs.json
+  s_30a3c6beaea04e::t_6c1ff406a736a3 7-8
+src/main.js
+  s_30a3c6beaea04e::t_da926e5f63054d 9,162-181
+  s_30a3c6beaea04e::t_dfe4d59fc6de9b 182-183
+test/ui-driver.js
+  s_30a3c6beaea04e::t_0207ad1511259d 589,597
+  s_30a3c6beaea04e::t_4f22a9021474cc 722-724
+  s_30a3c6beaea04e::t_c21a063b3a16b8 729
+  s_30a3c6beaea04e::t_8c739c13946203 264-285
+  s_30a3c6beaea04e::t_640eef1769a2dd 1661
+  s_30a3c6beaea04e::t_fdfcbbd62d2d96 728
+  s_30a3c6beaea04e::t_cebacd8e396cf7 585-588,590-596,598-630
+  s_30a3c6beaea04e::t_6a52aa2118e379 1214-1232
+  s_30a3c6beaea04e::t_61dc049a538721 256-263,720-721,725-727
+CLAUDE.md
+  s_30a3c6beaea04e::t_d2613e83fdc9c2 73
+  s_30a3c6beaea04e::t_2a2d5c44b38530 107,118
+  s_30a3c6beaea04e::t_7d0337a4ed2d29 24,56,100,133,173
+src/sqlfiles.js
+  s_30a3c6beaea04e::t_da926e5f63054d 1-6
+src/frontend/index.html
+  s_30a3c6beaea04e::t_61dc049a538721 153
+  s_30a3c6beaea04e::t_6a52aa2118e379 18
+src/frontend/app.js
+  s_30a3c6beaea04e::t_78454bc45e7e33 243-247,267-268,299-311
+  s_30a3c6beaea04e::t_61dc049a538721 240,265-266,287-291,624
+  s_30a3c6beaea04e::t_15fb8d55cb0026 717-758,763,765-767,771-780
+  s_30a3c6beaea04e::t_6c1ff406a736a3 1464-1465
+  s_30a3c6beaea04e::t_6a52aa2118e379 1195,1282-1292
+  s_30a3c6beaea04e::t_c0fbf6e6fb841d 424,517,526,549,573,584,794-795,797,801-808,812
+test/sqlfiles.js
+  s_30a3c6beaea04e::t_aa2e2ee1608bd1 23
+  s_30a3c6beaea04e::t_da926e5f63054d 1-22,24-32
+src/frontend/style.css
+  s_30a3c6beaea04e::t_c0fbf6e6fb841d 208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7704d9996b04006cd41494ee552793f2c35775d",
+  "prompts": {},
+  "sessions": {
+    "s_30a3c6beaea04e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e39faec-b569-4bcb-9d2a-5ba6d6bf5812",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Ulises Acosta <ulises.xsoft@gmail.com>"
+    }
+  }
+}
